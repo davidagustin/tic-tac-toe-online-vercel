@@ -12,6 +12,7 @@ export function usePusher() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
   
   const lobbyChannel = useRef<Channel | null>(null);
   const gameChannel = useRef<Channel | null>(null);
@@ -249,16 +250,39 @@ export function usePusher() {
       }
     };
 
+    // Set up polling as fallback when Pusher fails
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      console.log('Starting API polling as Pusher fallback...');
+      setIsUsingFallback(true);
+      pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch('/api/game/list');
+          if (response.ok) {
+            const gamesData = await response.json();
+            setGames(gamesData);
+          }
+        } catch (error) {
+          console.error('Polling failed:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+    };
+
     // Try to load games after a delay if not connected
     const timeout = setTimeout(() => {
       if (!isConnected && !isInitializing) {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
+        startPolling();
       }
     }, 5000);
 
     return () => {
       clearTimeout(timeout);
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
       disconnect();
     };
   }, [connect, disconnect, isConnected, isInitializing]);
@@ -266,6 +290,7 @@ export function usePusher() {
   return {
     isConnected,
     isInitializing,
+    isUsingFallback,
     lastError,
     games,
     currentGame,

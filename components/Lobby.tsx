@@ -18,7 +18,7 @@ interface UserStats {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { isConnected, playerStats, subscribeToUser } = usePusher();
+  const { isConnected, isUsingFallback, playerStats, subscribeToUser } = usePusher();
   const [view, setView] = useState<'games' | 'chat'>('games');
 
   // Subscribe to user stats when component mounts
@@ -57,10 +57,14 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
           <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
             isConnected 
               ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+              : isUsingFallback
+              ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
               : 'bg-red-500/20 text-red-300 border border-red-400/30'
           }`}>
-            <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
-            {isConnected ? 'Connected' : 'Disconnected'}
+            <div className={`w-2 h-2 rounded-full mr-2 ${
+              isConnected ? 'bg-green-400' : isUsingFallback ? 'bg-yellow-400' : 'bg-red-400'
+            }`}></div>
+            {isConnected ? 'Connected' : isUsingFallback ? 'Using Fallback' : 'Disconnected'}
           </div>
         </div>
       </div>
