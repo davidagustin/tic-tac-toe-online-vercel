@@ -56,11 +56,13 @@ const io = new Server(httpServer, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
       ? process.env.FRONTEND_URL || "https://tic-tac-toe-online-vercel.vercel.app"
-      : "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true
+      : ["http://localhost:3000", "http://127.0.0.1:3000"],
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   },
-  transports: ['websocket', 'polling']
+  transports: ['polling', 'websocket'],
+  allowEIO3: true
 });
 
 // In-memory storage for games
@@ -226,6 +228,10 @@ io.on('connection', (socket) => {
   try {
     validateSocketConnection(socket);
     console.log('made socket connection', socket.id);
+    
+    // Add connection debugging
+    console.log('Client connected from:', socket.handshake.address);
+    console.log('Client headers:', socket.handshake.headers.origin);
     
     // Rate limiting for new connections
     if (!checkSocketRateLimit(socket.id)) {
@@ -489,6 +495,7 @@ io.on('connection', (socket) => {
       }
     });
 
+    // Handle get game request
     socket.on('get game', (gameId) => {
       try {
         // Rate limiting
@@ -657,14 +664,89 @@ io.on('connection', (socket) => {
       }
     });
 
+    // Handle user signout event
+    socket.on('user signout', (userName) => {
+      try {
+        console.log('User signing out:', userName);
+        
+        // Find all games where this user is a player
+        for (const [gameId, game] of games.entries()) {
+          if (game.players.includes(userName)) {
+            console.log('Removing user from game:', userName, 'Game ID:', gameId);
+            
+            // Remove user from the game
+            const playerIndex = game.players.indexOf(userName);
+            if (playerIndex !== -1) {
+              game.players.splice(playerIndex, 1);
+              
+              // If no players left, remove the game after a delay to prevent race conditions
+              if (game.players.length === 0) {
+                console.log('No players left, scheduling game removal:', gameId);
+                
+                // Remove game creator tracking
+                if (game.createdBy) {
+                  const creatorGameId = gameCreators.get(game.createdBy);
+                  if (creatorGameId === gameId) {
+                    gameCreators.delete(game.createdBy);
+                  }
+                }
+                
+                // Delay game removal to prevent race conditions with joining
+                setTimeout(() => {
+                  if (games.has(gameId)) {
+                    const currentGame = games.get(gameId);
+                    if (currentGame && currentGame.players.length === 0) {
+                      console.log('Removing game after delay:', gameId);
+                      games.delete(gameId);
+                      io.emit('game removed', gameId);
+                    }
+                  }
+                }, 2000); // 2 second delay
+              } else {
+                // Reset game to waiting state
+                game.status = 'waiting';
+                game.board = Array(9).fill(null);
+                game.currentPlayer = 'X';
+                game.winner = null;
+                
+                console.log('Game reset to waiting state due to player sign out');
+                
+                // Notify remaining players
+                io.emit('player left game', gameId, userName, game);
+                io.emit('game updated', game);
+              }
+            }
+          }
+        }
+        
+        // Remove player from players map
+        players.delete(socket.id);
+        
+        console.log('User sign out cleanup completed for:', userName);
+        
+      } catch (error) {
+        console.error('Error handling user sign out:', error);
+        logSecurityEvent('USER_SIGNOUT_ERROR', { socketId: socket.id, userName, error: error.message }, 'medium');
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', (reason) => {
       console.log('socket disconnected', socket.id, 'reason:', reason);
+      console.log('Disconnect details - Address:', socket.handshake.address, 'Origin:', socket.handshake.headers.origin);
       
       // Clean up player tracking
       const playerData = players.get(socket.id);
       if (playerData) {
         const { userName, gameId } = playerData;
+        
+        // Ensure userName is valid
+        if (!userName || typeof userName !== 'string') {
+          console.log('Invalid userName in playerData:', userName);
+          players.delete(socket.id);
+          return;
+        }
+        
         const game = games.get(gameId);
         
         if (game) {
@@ -676,10 +758,9 @@ io.on('connection', (socket) => {
             game.players.splice(playerIndex, 1);
           }
           
-          // If no players left, remove the game
+          // If no players left, remove the game after a delay to prevent race conditions
           if (game.players.length === 0) {
-            console.log('No players left, removing game:', gameId);
-            games.delete(gameId);
+            console.log('No players left, scheduling game removal:', gameId);
             
             // Remove game creator tracking
             if (game.createdBy) {
@@ -689,7 +770,17 @@ io.on('connection', (socket) => {
               }
             }
             
-            io.emit('game removed', gameId);
+            // Delay game removal to prevent race conditions with joining
+            setTimeout(() => {
+              if (games.has(gameId)) {
+                const currentGame = games.get(gameId);
+                if (currentGame && currentGame.players.length === 0) {
+                  console.log('Removing game after delay:', gameId);
+                  games.delete(gameId);
+                  io.emit('game removed', gameId);
+                }
+              }
+            }, 2000); // 2 second delay
           } else {
             // Reset game to waiting state
             game.status = 'waiting';
@@ -707,7 +798,7 @@ io.on('connection', (socket) => {
             
             console.log('Game updated after player left:', updatedGame);
             
-            // Notify all clients
+            // Notify all clients with valid userName
             io.emit('player left game', gameId, userName, updatedGame);
             io.emit('game updated', updatedGame);
           }

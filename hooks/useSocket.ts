@@ -20,15 +20,16 @@ export function useSocket() {
     }
 
     try {
-      const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000,
+      const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
+        transports: ['polling', 'websocket'],
+        timeout: 20000,
         reconnection: true,
         reconnectionAttempts: MAX_RECONNECTION_ATTEMPTS,
         reconnectionDelay: RECONNECTION_DELAY,
         reconnectionDelayMax: 10000,
         autoConnect: true,
-        forceNew: true
+        forceNew: true,
+        withCredentials: true
       });
 
       // Connection event handlers

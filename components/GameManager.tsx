@@ -100,6 +100,12 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.error('Server error:', error);
       setIsLoading(false);
       
+      // Handle empty error objects
+      if (!error || !error.message) {
+        console.warn('Received empty error object from server');
+        return;
+      }
+      
       if (error.message.includes('already have an active game')) {
         alert(`Error: ${error.message}`);
         // Optionally redirect to the existing game
@@ -262,6 +268,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       <div className="text-center relative z-10">
         {!showCreateForm ? (
           <button
+            data-testid="create-game-button"
             onClick={() => {
               console.log('Create New Game button clicked');
               console.log('isConnected:', isConnected);
@@ -271,7 +278,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
             className="bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 mx-auto cursor-pointer"
           >
             <span className="text-xl">➕</span>
-            <span>Create New Game</span>
+            <span>Create Game</span>
           </button>
         ) : (
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-xl max-w-md mx-auto">
@@ -284,10 +291,11 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                 <input
                   type="text"
                   id="gameName"
+                  data-testid="game-name-input"
                   value={newGameName}
                   onChange={(e) => setNewGameName(e.target.value)}
                   className="w-full px-4 py-3 bg-white/10 border-2 border-purple-300/30 rounded-xl focus:outline-none focus:border-purple-600 text-white placeholder-pink-200 text-lg transition-all duration-300 backdrop-blur-sm"
-                  placeholder="Enter game name..."
+                  placeholder="Enter game name"
                   autoFocus
                   disabled={isLoading}
                   required
@@ -297,6 +305,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
               <div className="flex space-x-3">
                 <button
                   type="submit"
+                  data-testid="create-button"
                   disabled={isLoading || !newGameName.trim()}
                   className="flex-1 bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 cursor-pointer"
                 >
@@ -308,7 +317,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                   ) : (
                     <>
                       <span>🎮</span>
-                      <span>Create Game</span>
+                      <span>Create</span>
                     </>
                   )}
                 </button>
@@ -373,9 +382,10 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredGames.map((game) => (
+            {filteredGames.map((game, index) => (
               <div
-                key={game.id}
+                key={`${game.id}-${index}`}
+                data-testid={`game-${game.id}`}
                 className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
               >
                 <div className="flex items-center justify-between mb-4">
@@ -420,12 +430,13 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                   
                   {game.status === 'waiting' && game.players.length < 2 && (
                     <button
+                      data-testid={`join-game-${game.id}`}
                       onClick={() => handleJoinGame(game.id)}
                       disabled={!isConnected || game.players.includes(userName)}
                       className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all duration-300 hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2 cursor-pointer"
                     >
                       <span>🎮</span>
-                      <span>{game.players.includes(userName) ? 'Already Joined' : 'Join Game'}</span>
+                      <span>{game.players.includes(userName) ? 'Already Joined' : 'Join'}</span>
                     </button>
                   )}
                   

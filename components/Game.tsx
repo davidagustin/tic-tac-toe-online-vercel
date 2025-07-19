@@ -25,12 +25,20 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [winner, setWinner] = useState<string | null>(null);
   const [players, setPlayers] = useState<string[]>([]);
+  const [hasError, setHasError] = useState<boolean>(false);
+  const [shouldUnmount, setShouldUnmount] = useState<boolean>(false);
 
 
   console.log('Game component mounted with gameId:', gameId, 'userName:', userName);
   console.log('Initial game status:', gameStatus);
   console.log('Socket connected:', isConnected);
   console.log('Socket object:', socket);
+
+  // Early return if we should unmount due to error
+  if (shouldUnmount) {
+    console.log('Game component: should unmount, returning early');
+    return null;
+  }
 
   // Track game status changes
   useEffect(() => {
@@ -156,12 +164,21 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
 
   useEffect(() => {
     console.log('Game component useEffect: socket available:', !!socket);
-    if (!socket) return;
+    if (!socket || hasError || shouldUnmount) return;
 
     // Request current game data when component mounts
     console.log('Game component: requesting current game data for gameId:', gameId);
     socket.emit('get game', gameId);
     console.log('Game component: get game request sent');
+    
+    // Add a timeout to handle cases where game data is not received
+    const timeoutId = setTimeout(() => {
+      console.log('Game component: timeout waiting for game data, checking if game still exists');
+      if (gameStatus === 'waiting' && !hasError) {
+        console.log('Game component: still waiting after timeout, requesting game data again');
+        socket.emit('get game', gameId);
+      }
+    }, 5000); // 5 second timeout
 
     const handleMoveMade = (moveGameId: string, index: number, player: string, nextPlayer: string, gameWinner: string | null, status: string) => {
       if (moveGameId === gameId) {
@@ -266,7 +283,10 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         
         setCurrentPlayer(updatedGame.currentPlayer || 'X');
         setWinner(null);
-        setGameMessage(`${leftPlayerName} left the game. Waiting for a new player...`);
+        
+        // Handle null or undefined player name
+        const playerName = leftPlayerName || 'A player';
+        setGameMessage(`${playerName} left the game. Waiting for a new player...`);
         
         // Request fresh game data to ensure synchronization
         socket.emit('get game', gameId);
@@ -285,6 +305,20 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       }
     };
 
+    // Handle socket errors
+    const handleSocketError = (error: { message: string }) => {
+      console.error('Game component: socket error:', error);
+      if (error.message === 'Game not found' && !hasError) {
+        console.log('Game component: game not found, returning to lobby immediately');
+        setHasError(true);
+        setShouldUnmount(true);
+        setGameMessage('Game not found. Returning to lobby...');
+        // Return to lobby immediately without delay to prevent reconnection loop
+        onBackToLobby();
+        return; // Exit early to prevent further processing
+      }
+    };
+
     socket.on('move made', handleMoveMade);
     socket.on('game started', handleGameStarted);
     socket.on('game updated', handleGameUpdated);
@@ -292,8 +326,10 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     socket.on('game reset', handleGameReset);
     socket.on('player left game', handlePlayerLeftGame);
     socket.on('game removed', handleGameRemoved);
+    socket.on('error', handleSocketError);
 
     return () => {
+      clearTimeout(timeoutId);
       socket.off('move made', handleMoveMade);
       socket.off('game started', handleGameStarted);
       socket.off('game updated', handleGameUpdated);
@@ -301,8 +337,9 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       socket.off('game reset', handleGameReset);
       socket.off('player left game', handlePlayerLeftGame);
       socket.off('game removed', handleGameRemoved);
+      socket.off('error', handleSocketError);
     };
-  }, [socket, gameId, userName, onBackToLobby, handleLeaveGame]);
+  }, [socket, gameId, userName, onBackToLobby, handleLeaveGame, hasError, shouldUnmount]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
@@ -382,13 +419,19 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
             {/* Game Status Messages */}
             <div className="text-center space-y-2">
               {gameStatus === 'waiting' && (
-                <div className="text-white text-xl font-semibold bg-yellow-500/20 px-4 py-2 rounded-xl border border-yellow-400/30">
+                <div data-testid="waiting-message" className="text-white text-xl font-semibold bg-yellow-500/20 px-4 py-2 rounded-xl border border-yellow-400/30">
                   ⏳ Waiting for players to join...
                 </div>
               )}
               
+              {gameStatus === 'playing' && (
+                <div data-testid="turn-indicator" className="text-white text-xl font-semibold">
+                  {isMyTurn ? 'Your turn' : 'Waiting for opponent'}
+                </div>
+              )}
+              
               {gameStatus === 'finished' && (
-                <div className="text-white text-xl font-semibold bg-purple-500/20 px-4 py-2 rounded-xl border border-purple-400/30">
+                <div data-testid="game-over" className="text-white text-xl font-semibold bg-purple-500/20 px-4 py-2 rounded-xl border border-purple-400/30">
                   {winner ? `🏆 ${winner} Wins!` : '🤝 It\'s a Draw!'}
                 </div>
               )}
@@ -402,11 +445,12 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
 
         {/* Game Board */}
         <div className="flex justify-center mb-8">
-          <div className="grid grid-cols-3 gap-4 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+          <div data-testid="game-board" className="grid grid-cols-3 gap-4 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
             {board.map((row, y) =>
               row.map((cell, x) => (
                 <button
                   key={`${y}-${x}`}
+                  data-testid={`cell-${y * 3 + x}`}
                   onClick={() => handleCellClick(y, x)}
                   disabled={cell !== null || !isMyTurn || gameStatus !== 'playing'}
                   className={`w-20 h-20 border-2 rounded-xl text-3xl font-bold transition-all duration-300 relative overflow-hidden ${
@@ -433,6 +477,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         {/* Game Controls */}
         <div className="flex justify-center space-x-4">
           <button
+            data-testid="leave-game"
             onClick={handleLeaveGame}
             className="bg-red-500/20 backdrop-blur-sm text-red-300 font-medium py-3 px-6 rounded-xl border border-red-400/30 transition-all duration-300 hover:bg-red-500/30 hover:scale-105 cursor-pointer"
           >
@@ -443,10 +488,11 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           
           {gameStatus === 'finished' && (
             <button
+              data-testid="new-game"
               onClick={resetGame}
               className="bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg cursor-pointer"
             >
-              Play Again
+              New Game
             </button>
           )}
         </div>

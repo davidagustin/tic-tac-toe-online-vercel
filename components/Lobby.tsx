@@ -52,16 +52,8 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
     };
   }, [socket, userName, refreshUserStats]);
 
-  // Cleanup effect to notify server when user signs out
-  useEffect(() => {
-    return () => {
-      // This cleanup function runs when the component unmounts (user signs out)
-      if (socket && userName) {
-        console.log('User signing out, notifying server:', userName);
-        socket.emit('user signout', userName);
-      }
-    };
-  }, [socket, userName]);
+  // Note: Removed automatic signout cleanup to prevent race conditions when joining games
+  // Signout is now handled explicitly in the main page component when user actually signs out
 
   // Refresh stats when returning to lobby (e.g., after a game)
   useEffect(() => {

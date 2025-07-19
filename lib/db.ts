@@ -17,6 +17,9 @@ const pool = process.env.DATABASE_URL ? new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 }) : null;
 
+// In-memory statistics storage for development when database is not configured
+const inMemoryStats = new Map<string, { wins: number; losses: number; draws: number; total_games: number }>();
+
 export async function createConnection(): Promise<PoolClient | null> {
   if (!pool) {
     console.error('Database not configured. Please set DATABASE_URL environment variable.');

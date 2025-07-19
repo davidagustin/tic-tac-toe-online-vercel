@@ -1,3 +1,6 @@
+// Load environment variables
+require('dotenv').config({ path: '.env.local' });
+
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
@@ -57,7 +60,7 @@ const SECURITY_CONFIG = {
   SOCKET_RATE_LIMIT_MAX: 50,
   ALLOWED_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?@#$%^&*()+=:;"'<>[\]{}|\\/~`]+$/,
   ALLOWED_USERNAME_CHARACTERS: /^[a-zA-Z0-9\s\-_]+$/,
-  ALLOWED_GAME_NAME_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?()]+$/,
+  ALLOWED_GAME_NAME_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?()&@#$%^+=:;'"`~[\]{}|\\/]+$/,
   MAX_BOARD_INDEX: 8,
   MIN_BOARD_INDEX: 0,
   MAX_GAMES_PER_USER: 5,

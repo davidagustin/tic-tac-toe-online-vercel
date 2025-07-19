@@ -31,6 +31,21 @@ CREATE INDEX IF NOT EXISTS idx_lobby_chat_timestamp ON lobby_chat_messages(times
 CREATE INDEX IF NOT EXISTS idx_game_chat_game_id ON game_chat_messages(game_id);
 CREATE INDEX IF NOT EXISTS idx_game_chat_timestamp ON game_chat_messages(timestamp DESC);
 
+-- Game statistics table
+CREATE TABLE IF NOT EXISTS game_statistics (
+  id SERIAL PRIMARY KEY,
+  user_name VARCHAR(100) UNIQUE NOT NULL,
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  draws INTEGER DEFAULT 0,
+  total_games INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for game statistics
+CREATE INDEX IF NOT EXISTS idx_game_stats_user_name ON game_statistics(user_name);
+
 -- Optional: Add some sample data for lobby chat
 INSERT INTO lobby_chat_messages (text, user_name) VALUES 
   ('Welcome to the Tic-Tac-Toe Game Lobby! 🎮', 'System'),

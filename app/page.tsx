@@ -38,6 +38,53 @@ export default function Home() {
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
   const { socket } = useSocket();
 
+  // Load user from localStorage on component mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('ticTacToeUser');
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setShowLobby(true);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('ticTacToeUser');
+      }
+    }
+  }, []);
+
+  // Listen for game removal events
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleGameRemoved = (removedGameId: string) => {
+      console.log('Main page: game removed event received for game:', removedGameId);
+      console.log('Main page: current game state:', currentGame);
+      if (currentGame && currentGame.gameId === removedGameId) {
+        console.log('Main page: current game was removed, returning to lobby');
+        setCurrentGame(null);
+      } else {
+        console.log('Main page: game removed but not current game, or no current game');
+      }
+    };
+
+    const handleSocketError = (error: { message: string }) => {
+      console.error('Main page: socket error:', error);
+      if (error.message === 'Game not found' && currentGame) {
+        console.log('Main page: game not found error, returning to lobby');
+        setCurrentGame(null);
+      }
+    };
+
+    socket.on('game removed', handleGameRemoved);
+    socket.on('error', handleSocketError);
+
+    return () => {
+      socket.off('game removed', handleGameRemoved);
+      socket.off('error', handleSocketError);
+    };
+  }, [socket, currentGame]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -58,6 +105,9 @@ export default function Home() {
 
       if (response.ok) {
         setUser(data.user);
+        
+        // Save user to localStorage for persistence
+        localStorage.setItem('ticTacToeUser', JSON.stringify(data.user));
         
         // Clear form
         setUsername('');
@@ -264,10 +314,12 @@ export default function Home() {
                     <input
                       type="text"
                       id="username"
+                      name="username"
+                      data-testid="username-input"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="w-full px-4 py-4 bg-white bg-opacity-10 border-2 border-purple-300 border-opacity-30 rounded-2xl focus:outline-none focus:border-purple-600 text-white placeholder-pink-200 text-lg transition-all duration-300 backdrop-blur-sm"
-                      placeholder="Enter your username..."
+                      placeholder="Enter your username"
                       autoFocus
                       disabled={isLoading}
                       required
@@ -287,10 +339,12 @@ export default function Home() {
                     <input
                       type="password"
                       id="password"
+                      name="password"
+                      data-testid="password-input"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full px-4 py-4 bg-white bg-opacity-10 border-2 border-purple-300 border-opacity-30 rounded-2xl focus:outline-none focus:border-purple-600 text-white placeholder-pink-200 text-lg transition-all duration-300 backdrop-blur-sm"
-                      placeholder="Enter your password..."
+                      placeholder="Enter your password"
                       disabled={isLoading}
                       required
                       minLength={isLogin ? undefined : 6}
@@ -309,6 +363,7 @@ export default function Home() {
 
             <button
               type="submit"
+              data-testid="submit-button"
               disabled={isLoading}
               className="w-full bg-gradient-to-r from-purple-600 via-pink-400 to-red-500 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 hover:from-purple-700 hover:via-pink-500 hover:to-red-600 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
