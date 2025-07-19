@@ -255,10 +255,14 @@ export default function Home() {
         </div>
         
         {/* Debug Component */}
-        <PusherDebug />
-        
-        {/* Test Component */}
-        <PusherTest />
+        {process.env.NODE_ENV === 'development' && (
+          <>
+            <PusherDebug />
+            
+            {/* Test Component */}
+            <PusherTest />
+          </>
+        )}
       </div>
     );
   }
