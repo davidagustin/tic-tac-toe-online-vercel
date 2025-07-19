@@ -1,23 +1,50 @@
 import PusherServer from 'pusher';
 import PusherClient from 'pusher-js';
 
-// Get environment variables with fallbacks
-const PUSHER_APP_ID = process.env.PUSHER_APP_ID || '';
-const PUSHER_KEY = process.env.NEXT_PUBLIC_PUSHER_KEY || '';
-const PUSHER_SECRET = process.env.PUSHER_SECRET || '';
-const PUSHER_CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2';
+// Environment validation
+const validateEnvironment = () => {
+  const required = {
+    PUSHER_APP_ID: process.env.PUSHER_APP_ID,
+    PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
+    PUSHER_SECRET: process.env.PUSHER_SECRET,
+    PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+  };
 
-// Server-side Pusher instance
+  const missing = Object.entries(required)
+    .filter(([_, value]) => !value)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required Pusher environment variables: ${missing.join(', ')}`);
+  }
+
+  return required;
+};
+
+// Get validated environment variables
+const env = validateEnvironment();
+
+// Server-side Pusher instance with best practices
 export const pusherServer = new PusherServer({
-  appId: PUSHER_APP_ID,
-  key: PUSHER_KEY,
-  secret: PUSHER_SECRET,
-  cluster: PUSHER_CLUSTER,
+  appId: env.PUSHER_APP_ID!,
+  key: env.PUSHER_KEY!,
+  secret: env.PUSHER_SECRET!,
+  cluster: env.PUSHER_CLUSTER!,
   useTLS: true,
+  // Security settings
+  encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
 });
 
 // Client-side Pusher instance - will be initialized with config from server
 let pusherClient: PusherClient | null = null;
+
+// Enhanced Pusher client configuration
+const getPusherClientConfig = (key: string, cluster: string) => ({
+  cluster,
+  forceTLS: true,
+  // Performance settings
+  disableStats: true, // Disable stats collection for better performance
+});
 
 // Function to initialize Pusher client with config from server
 export async function initializePusherClient(): Promise<PusherClient> {
@@ -26,8 +53,23 @@ export async function initializePusherClient(): Promise<PusherClient> {
   }
 
   try {
-    // Fetch config from server
-    const response = await fetch('/api/pusher-config');
+    // Fetch config from server with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch('/api/pusher-config', {
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Pusher config: ${response.status}`);
+    }
+
     const config = await response.json();
     
     console.log('Fetched Pusher config from server:', {
@@ -40,11 +82,25 @@ export async function initializePusherClient(): Promise<PusherClient> {
       throw new Error('Pusher configuration not available');
     }
 
-    pusherClient = new PusherClient(config.key, {
-      cluster: config.cluster,
-      forceTLS: true,
-      enabledTransports: ['ws', 'wss', 'xhr_streaming', 'xhr_polling'],
-      disableStats: true,
+    const clientConfig = getPusherClientConfig(config.key, config.cluster);
+    
+    pusherClient = new PusherClient(config.key, clientConfig);
+
+    // Set up connection event handlers
+    pusherClient.connection.bind('connecting', () => {
+      console.log('Pusher client: Connecting...');
+    });
+
+    pusherClient.connection.bind('connected', () => {
+      console.log('Pusher client: Connected successfully');
+    });
+
+    pusherClient.connection.bind('disconnected', () => {
+      console.log('Pusher client: Disconnected');
+    });
+
+    pusherClient.connection.bind('error', (error: any) => {
+      console.error('Pusher client: Connection error:', error);
     });
 
     console.log('Pusher client initialized with config from server:', {
@@ -60,28 +116,53 @@ export async function initializePusherClient(): Promise<PusherClient> {
   }
 }
 
-// Get Pusher client (for backward compatibility)
+// Get existing Pusher client instance
 export function getPusherClient(): PusherClient | null {
   return pusherClient;
+}
+
+// Cleanup function
+export function cleanupPusherClient(): void {
+  if (pusherClient) {
+    pusherClient.disconnect();
+    pusherClient = null;
+  }
 }
 
 // Debug Pusher configuration (server-side only)
 if (typeof window === 'undefined') {
   console.log('Server-side Pusher Config:', {
-    key: PUSHER_KEY ? 'Set' : 'Not set',
-    cluster: PUSHER_CLUSTER,
-    keyLength: PUSHER_KEY?.length || 0,
+    key: env.PUSHER_KEY ? 'Set' : 'Not set',
+    cluster: env.PUSHER_CLUSTER,
+    keyLength: env.PUSHER_KEY?.length || 0,
+    appId: env.PUSHER_APP_ID ? 'Set' : 'Not set',
   });
 }
 
-// Channel names
+// Channel names with validation
 export const CHANNELS = {
   LOBBY: 'lobby',
-  GAME: (gameId: string) => `game-${gameId}`,
-  USER: (userId: string) => `user-${userId}`,
+  GAME: (gameId: string) => {
+    if (!gameId || typeof gameId !== 'string') {
+      throw new Error('Invalid game ID for channel');
+    }
+    return `game-${gameId}`;
+  },
+  USER: (userId: string) => {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid user ID for channel');
+    }
+    return `user-${userId}`;
+  },
+  PRIVATE: (userId: string) => {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid user ID for private channel');
+    }
+    return `private-user-${userId}`;
+  },
 };
 
-// Event names
+// Event names with validation
 export const EVENTS = {
   // Game events
   GAME_CREATED: 'game-created',
@@ -105,40 +186,150 @@ export const EVENTS = {
   // System events
   ERROR: 'error',
   CONNECTION_STATUS: 'connection-status',
+  HEARTBEAT: 'heartbeat',
 };
 
-// Game state interface
+// Type definitions for better type safety
 export interface Game {
   id: string;
   name: string;
-  players: string[];
   status: 'waiting' | 'playing' | 'finished';
+  players: string[];
+  currentPlayer?: 'X' | 'O';
+  board: string[];
+  winner?: string;
   createdBy: string;
-  createdAt: Date;
-  board: (string | null)[];
-  currentPlayer: string | null;
-  winner: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Player interface
 export interface Player {
-  userName: string;
-  gameId: string | null;
+  id: string;
+  name: string;
+  symbol: 'X' | 'O';
+  isOnline: boolean;
+  lastSeen: string;
 }
 
-// Chat message interface
 export interface ChatMessage {
-  id: number;
+  id: string;
   text: string;
-  user_name: string;
-  timestamp: Date;
-  game_id?: string;
+  userName: string;
+  timestamp: string;
+  gameId?: string;
 }
 
-// Statistics interface
 export interface PlayerStats {
+  userName: string;
   wins: number;
   losses: number;
   draws: number;
-  total_games: number;
+  totalGames: number;
+  winRate: number;
+}
+
+// Enhanced Pusher utilities
+export class PusherUtils {
+  // Validate channel name
+  static validateChannelName(channelName: string): boolean {
+    return /^[a-zA-Z0-9_-]+$/.test(channelName);
+  }
+
+  // Validate event name
+  static validateEventName(eventName: string): boolean {
+    return /^[a-zA-Z0-9_-]+$/.test(eventName);
+  }
+
+  // Sanitize data for Pusher
+  static sanitizeData(data: any): any {
+    if (typeof data === 'string') {
+      return data.substring(0, 1000); // Limit string length
+    }
+    if (typeof data === 'object' && data !== null) {
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof key === 'string' && key.length <= 50) {
+          sanitized[key] = this.sanitizeData(value);
+        }
+      }
+      return sanitized;
+    }
+    return data;
+  }
+
+  // Trigger event with error handling and validation
+  static async triggerEvent(
+    channel: string,
+    event: string,
+    data: any
+  ): Promise<void> {
+    try {
+      if (!this.validateChannelName(channel)) {
+        throw new Error(`Invalid channel name: ${channel}`);
+      }
+
+      if (!this.validateEventName(event)) {
+        throw new Error(`Invalid event name: ${event}`);
+      }
+
+      const sanitizedData = this.sanitizeData(data);
+
+      await pusherServer.trigger(channel, event, sanitizedData);
+      
+      console.log(`Pusher event triggered: ${channel}:${event}`);
+    } catch (error) {
+      console.error('Failed to trigger Pusher event:', {
+        channel,
+        event,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  // Subscribe to channel with error handling
+  static subscribeToChannel(
+    pusherClient: PusherClient,
+    channelName: string,
+    eventHandlers: Record<string, (data: any) => void>
+  ): void {
+    try {
+      if (!this.validateChannelName(channelName)) {
+        throw new Error(`Invalid channel name: ${channelName}`);
+      }
+
+      const channel = pusherClient.subscribe(channelName);
+
+      // Bind event handlers
+      Object.entries(eventHandlers).forEach(([event, handler]) => {
+        if (this.validateEventName(event)) {
+          channel.bind(event, handler);
+        }
+      });
+
+      console.log(`Subscribed to channel: ${channelName}`);
+    } catch (error) {
+      console.error('Failed to subscribe to channel:', {
+        channelName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  // Unsubscribe from channel
+  static unsubscribeFromChannel(
+    pusherClient: PusherClient,
+    channelName: string
+  ): void {
+    try {
+      pusherClient.unsubscribe(channelName);
+      console.log(`Unsubscribed from channel: ${channelName}`);
+    } catch (error) {
+      console.error('Failed to unsubscribe from channel:', {
+        channelName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
 } 
