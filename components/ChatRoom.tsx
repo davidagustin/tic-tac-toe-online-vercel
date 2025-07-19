@@ -147,7 +147,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.user_name}</span>
+                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
                         </div>
