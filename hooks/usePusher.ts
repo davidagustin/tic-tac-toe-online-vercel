@@ -48,6 +48,13 @@ export function usePusher() {
       pusherClient.connection.bind('disconnected', () => {
         console.log('Pusher disconnected');
         setIsConnected(false);
+        // Start fallback immediately when disconnected
+        if (!isUsingFallback) {
+          console.log('Starting fallback due to disconnection...');
+          loadGamesFromAPI();
+          // Note: We can't easily track the interval here, but it's okay for this use case
+          startPolling();
+        }
       });
 
       pusherClient.connection.bind('error', (error: any) => {
@@ -233,12 +240,24 @@ export function usePusher() {
     }
   }, []);
 
-  // Initialize connection on mount
-  useEffect(() => {
-    connect();
-    
-    // Fallback: Load games from API if Pusher fails
-    const loadGamesFromAPI = async () => {
+  // Fallback: Load games from API if Pusher fails
+  const loadGamesFromAPI = useCallback(async () => {
+    try {
+      const response = await fetch('/api/game/list');
+      if (response.ok) {
+        const gamesData = await response.json();
+        setGames(gamesData);
+      }
+    } catch (error) {
+      console.error('Failed to load games from API:', error);
+    }
+  }, []);
+
+  // Set up polling as fallback when Pusher fails
+  const startPolling = useCallback(() => {
+    console.log('Starting API polling as Pusher fallback...');
+    setIsUsingFallback(true);
+    const pollInterval = setInterval(async () => {
       try {
         const response = await fetch('/api/game/list');
         if (response.ok) {
@@ -246,35 +265,26 @@ export function usePusher() {
           setGames(gamesData);
         }
       } catch (error) {
-        console.error('Failed to load games from API:', error);
+        console.error('Polling failed:', error);
       }
-    };
+    }, 5000); // Poll every 5 seconds
+    
+    return pollInterval;
+  }, []);
 
-    // Set up polling as fallback when Pusher fails
-    let pollInterval: NodeJS.Timeout | null = null;
-
-    const startPolling = () => {
-      console.log('Starting API polling as Pusher fallback...');
-      setIsUsingFallback(true);
-      pollInterval = setInterval(async () => {
-        try {
-          const response = await fetch('/api/game/list');
-          if (response.ok) {
-            const gamesData = await response.json();
-            setGames(gamesData);
-          }
-        } catch (error) {
-          console.error('Polling failed:', error);
-        }
-      }, 5000); // Poll every 5 seconds
-    };
+  // Initialize connection on mount
+  useEffect(() => {
+    connect();
 
     // Try to load games after a delay if not connected
+    let pollInterval: NodeJS.Timeout | null = null;
+    
     const timeout = setTimeout(() => {
-      if (!isConnected && !isInitializing) {
+      console.log('Checking connection status after timeout...', { isConnected, isInitializing });
+      if (!isConnected) {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
-        startPolling();
+        pollInterval = startPolling();
       }
     }, 5000);
 
