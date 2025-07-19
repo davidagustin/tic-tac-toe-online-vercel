@@ -62,7 +62,6 @@ export function usePusher() {
         if (!isUsingFallback) {
           console.log('Starting fallback due to disconnection...');
           loadGamesFromAPI();
-          // Note: We can't easily track the interval here, but it's okay for this use case
           startPolling();
         }
       });
@@ -93,7 +92,7 @@ export function usePusher() {
           loadGamesFromAPI();
           startPolling();
         }
-      }, 3000); // Reduced timeout
+      }, 5000); // Increased timeout to 5 seconds
 
       // Clean up timeout when connected
       pusherClient.connection.bind('connected', () => {
@@ -136,6 +135,13 @@ export function usePusher() {
       console.error('Error connecting to Pusher:', error);
       setLastError(error instanceof Error ? error.message : 'Connection failed');
       setIsInitializing(false);
+      
+      // If Pusher initialization fails, start fallback immediately
+      if (!isUsingFallback) {
+        console.log('Pusher initialization failed, starting fallback...');
+        loadGamesFromAPI();
+        startPolling();
+      }
     }
   }, [currentGame]);
 
@@ -364,7 +370,7 @@ export function usePusher() {
         loadGamesFromAPI();
         startPolling();
       }
-    }, 4000); // Slightly longer timeout to allow connection to establish
+    }, 6000); // Increased timeout to 6 seconds to allow connection to establish
 
     return () => {
       clearTimeout(timeout);

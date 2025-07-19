@@ -40,17 +40,51 @@ const createPusherServer = () => {
   }
   
   const serverEnv = validateEnvironment();
-  return new PusherServer({
-    appId: serverEnv.PUSHER_APP_ID!,
-    key: serverEnv.PUSHER_KEY!,
-    secret: serverEnv.PUSHER_SECRET!,
-    cluster: serverEnv.PUSHER_CLUSTER!,
-    useTLS: true,
-    // Security settings
-    encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
-    // Additional settings for better compatibility
-    host: `api-${serverEnv.PUSHER_CLUSTER}.pusherapp.com`,
+  
+  // Validate required environment variables
+  if (!serverEnv.PUSHER_APP_ID) {
+    console.error('PUSHER_APP_ID is not set');
+    return null;
+  }
+  
+  if (!serverEnv.PUSHER_KEY) {
+    console.error('PUSHER_KEY is not set');
+    return null;
+  }
+  
+  if (!serverEnv.PUSHER_SECRET) {
+    console.error('PUSHER_SECRET is not set');
+    return null;
+  }
+  
+  if (!serverEnv.PUSHER_CLUSTER) {
+    console.error('PUSHER_CLUSTER is not set');
+    return null;
+  }
+  
+  console.log('Creating Pusher server with config:', {
+    appId: serverEnv.PUSHER_APP_ID ? 'Set' : 'Not set',
+    key: serverEnv.PUSHER_KEY ? `${serverEnv.PUSHER_KEY.substring(0, 8)}...` : 'Not set',
+    cluster: serverEnv.PUSHER_CLUSTER,
+    secret: serverEnv.PUSHER_SECRET ? `${serverEnv.PUSHER_SECRET.substring(0, 8)}...` : 'Not set',
   });
+  
+  try {
+    return new PusherServer({
+      appId: serverEnv.PUSHER_APP_ID!,
+      key: serverEnv.PUSHER_KEY!,
+      secret: serverEnv.PUSHER_SECRET!,
+      cluster: serverEnv.PUSHER_CLUSTER!,
+      useTLS: true,
+      // Security settings
+      encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
+      // Additional settings for better compatibility
+      host: `api-${serverEnv.PUSHER_CLUSTER}.pusherapp.com`,
+    });
+  } catch (error) {
+    console.error('Failed to create Pusher server:', error);
+    return null;
+  }
 };
 
 export const pusherServer = typeof window === 'undefined' ? createPusherServer() : null;

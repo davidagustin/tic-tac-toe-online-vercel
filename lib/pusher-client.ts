@@ -78,6 +78,15 @@ export async function initializePusherClient(): Promise<PusherClient> {
       });
     });
 
+    // Add reconnection event handlers
+    pusherClient.connection.bind('reconnecting', () => {
+      console.log('Pusher client: Reconnecting...');
+    });
+
+    pusherClient.connection.bind('reconnected', () => {
+      console.log('Pusher client: Reconnected successfully');
+    });
+
     // Log initial connection state
     console.log('Pusher client initial state:', pusherClient.connection.state);
 

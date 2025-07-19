@@ -10,7 +10,7 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, games: pusherGames } = usePusher();
+  const { isConnected, isUsingFallback, games: pusherGames } = usePusher();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -215,21 +215,51 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           </div>
         </div>
 
-        {!isConnected && (
+        {!isConnected && !isUsingFallback && (
           <div className="text-center py-8">
             <div className="text-red-400 mb-2">⚠️ Not connected to server</div>
-            <p className="text-purple-200">Please wait for connection to load games...</p>
+            <p className="text-purple-200 mb-4">Please wait for connection to load games...</p>
+            <button
+              onClick={async () => {
+                try {
+                  console.log('Testing Pusher connection...');
+                  const response = await fetch('/api/pusher-config');
+                  const config = await response.json();
+                  console.log('Pusher config:', config);
+                  
+                  // Test server connection
+                  const serverTest = await fetch('/api/test-pusher-connection');
+                  const serverResult = await serverTest.json();
+                  console.log('Server test result:', serverResult);
+                  
+                  alert('Connection test completed. Check console for details.');
+                } catch (error) {
+                  console.error('Connection test failed:', error);
+                  alert('Connection test failed. Check console for details.');
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300"
+            >
+              Test Connection
+            </button>
           </div>
         )}
 
-        {isConnected && filteredGames.length === 0 && (
+        {isUsingFallback && (
+          <div className="text-center py-8">
+            <div className="text-yellow-400 mb-2">🔄 Using fallback mode</div>
+            <p className="text-purple-200">Real-time updates are disabled, but you can still play games!</p>
+          </div>
+        )}
+
+        {(isConnected || isUsingFallback) && filteredGames.length === 0 && (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🎮</div>
             <p className="text-purple-200">No games available. Create one to get started!</p>
           </div>
         )}
 
-        {isConnected && filteredGames.length > 0 && (
+        {(isConnected || isUsingFallback) && filteredGames.length > 0 && (
           <div className="grid gap-4">
             {filteredGames.map((game) => (
               <div
