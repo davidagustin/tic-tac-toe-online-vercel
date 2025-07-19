@@ -86,7 +86,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
     
     pusherClient = new PusherClient(config.key, clientConfig);
 
-    // Set up connection event handlers
+    // Set up connection event handlers with detailed logging
     pusherClient.connection.bind('connecting', () => {
       console.log('Pusher client: Connecting...');
     });
@@ -101,7 +101,16 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     pusherClient.connection.bind('error', (error: any) => {
       console.error('Pusher client: Connection error:', error);
+      console.error('Error details:', {
+        code: error.code,
+        data: error.data,
+        message: error.message,
+        type: error.type
+      });
     });
+
+    // Log initial connection state
+    console.log('Pusher client initial state:', pusherClient.connection.state);
 
     console.log('Pusher client initialized with config from server:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test('Final production test - should pass', async ({ page }) => {
-  console.log('🎯 Running final production test - should pass...');
+test('Final production test - fails on connection issues', async ({ page }) => {
+  console.log('🎯 Running final production test - fails on connection issues...');
   
   try {
     // Navigate to production
@@ -26,18 +26,47 @@ test('Final production test - should pass', async ({ page }) => {
     await expect(page.locator('text=Available Games')).toBeVisible({ timeout: 10000 });
     console.log('✅ Main page elements visible');
     
-    // Check connection status but don't fail on it
+    // Check connection status - FAIL IMMEDIATELY if issues found
     console.log('🔍 Checking connection status...');
     
+    // Check for "Not connected to server" warning - FAIL if found
     const connectionWarning = page.locator('div.text-red-400:has-text("⚠️ Not connected to server")');
     const hasConnectionWarning = await connectionWarning.isVisible({ timeout: 3000 });
     
     if (hasConnectionWarning) {
-      console.log('⚠️ Found connection warning: "⚠️ Not connected to server"');
-      console.log('⚠️ App is using fallback mode - this is acceptable for testing');
+      console.log('❌ FAIL: Found connection warning: "⚠️ Not connected to server"');
+      console.log('❌ Socket connection is not working properly');
+      throw new Error('Connection test failed: "⚠️ Not connected to server" warning is visible');
     } else {
       console.log('✅ No connection warning found');
     }
+    
+    // Check for "Using Fallback" status - FAIL if found
+    const fallbackStatus = page.locator('div:has-text("Using Fallback")');
+    const hasFallbackStatus = await fallbackStatus.isVisible({ timeout: 3000 });
+    
+    if (hasFallbackStatus) {
+      console.log('❌ FAIL: Found "Using Fallback" status');
+      console.log('❌ App is not properly connected to real-time server');
+      throw new Error('Connection test failed: "Using Fallback" status is visible');
+    } else {
+      console.log('✅ No fallback status found');
+    }
+    
+    // Check for "Disconnected" status - FAIL if found
+    const disconnectedStatus = page.locator('div:has-text("Disconnected")');
+    const hasDisconnectedStatus = await disconnectedStatus.isVisible({ timeout: 3000 });
+    
+    if (hasDisconnectedStatus) {
+      console.log('❌ FAIL: Found "Disconnected" status');
+      console.log('❌ App is disconnected from server');
+      throw new Error('Connection test failed: "Disconnected" status is visible');
+    } else {
+      console.log('✅ No disconnected status found');
+    }
+    
+    // If we get here, connection is working properly
+    console.log('✅ Connection status is proper - no warnings or fallback mode detected');
     
     // Test basic functionality - click Create Game button
     console.log('🎮 Testing Create Game button...');
@@ -67,9 +96,11 @@ test('Final production test - should pass', async ({ page }) => {
     if (await availableGames.isVisible({ timeout: 5000 })) {
       console.log('✅ Successfully returned to lobby after game creation');
     } else if (await errorMessage.isVisible({ timeout: 3000 })) {
-      console.log('⚠️ Error occurred during game creation, but this is acceptable for testing');
+      console.log('❌ Error occurred during game creation');
+      throw new Error('Game creation failed with error');
     } else {
-      console.log('⚠️ Game creation may have succeeded but UI state unclear');
+      console.log('❌ Game creation may have succeeded but UI state unclear');
+      throw new Error('Game creation UI state unclear');
     }
     
     // Test navigation to chat tab
@@ -90,21 +121,15 @@ test('Final production test - should pass', async ({ page }) => {
       console.log('✅ Games tab navigation successful');
     }
     
-    // Sign out - try to avoid the debug element
+    // Sign out
     console.log('🚪 Testing sign out...');
     
-    // Try to click Sign Out button, but if it fails due to debug element, that's okay
-    try {
-      await page.click('text=Sign Out', { timeout: 5000 });
-      await page.waitForSelector('text=Welcome Back', { timeout: 10000 });
-      console.log('✅ Sign out successful');
-    } catch (error) {
-      console.log('⚠️ Sign out failed due to debug element blocking, but this is acceptable');
-      console.log('✅ Core functionality test completed successfully');
-    }
+    await page.click('text=Sign Out', { timeout: 10000 });
+    await page.waitForSelector('text=Welcome Back', { timeout: 10000 });
+    console.log('✅ Sign out successful');
     
     console.log('🎉 Final production test completed successfully!');
-    console.log('✅ The app is working correctly with fallback mode');
+    console.log('✅ The app is working correctly with proper real-time connection');
     
   } catch (error) {
     console.error('❌ Final production test failed:', error);
