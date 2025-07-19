@@ -43,6 +43,8 @@ export async function initializePusherClient(): Promise<PusherClient> {
     pusherClient = new PusherClient(config.key, {
       cluster: config.cluster,
       forceTLS: true,
+      enabledTransports: ['ws', 'wss', 'xhr_streaming', 'xhr_polling'],
+      disableStats: true,
     });
 
     console.log('Pusher client initialized with config from server:', {
