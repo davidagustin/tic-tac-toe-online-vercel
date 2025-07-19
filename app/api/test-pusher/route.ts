@@ -15,7 +15,9 @@ export async function GET() {
     // Test Pusher connection
     let connectionTest = 'Not tested';
     try {
-      await pusherServer.trigger('test-channel', 'test-event', { message: 'test' });
+      if (pusherServer) {
+        await pusherServer.trigger('test-channel', 'test-event', { message: 'test' });
+      }
       connectionTest = 'Success';
     } catch (error: any) {
       connectionTest = `Failed: ${error.message}`;

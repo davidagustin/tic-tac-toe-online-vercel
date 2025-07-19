@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
     };
 
     // Trigger Pusher event
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.CHAT_MESSAGE, { message });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.CHAT_MESSAGE, { message });
+    }
 
     return NextResponse.json(message);
   } catch (error) {

@@ -39,9 +39,11 @@ export async function POST(
     }
 
     // Trigger Pusher event to notify user
-    await pusherServer.trigger(CHANNELS.USER(userName), EVENTS.STATS_UPDATED, { 
-      stats: updatedStats 
-    });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.USER(userName), EVENTS.STATS_UPDATED, { 
+        stats: updatedStats 
+      });
+    }
 
     return NextResponse.json(updatedStats);
   } catch (error) {

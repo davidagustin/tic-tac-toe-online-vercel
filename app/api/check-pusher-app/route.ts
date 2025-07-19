@@ -4,6 +4,9 @@ import { pusherServer } from '@/lib/pusher';
 export async function GET() {
   try {
     // Try to get app info by making a simple request
+    if (!pusherServer) {
+      throw new Error('Pusher server not configured');
+    }
     const result = await pusherServer.trigger('test-channel', 'test-event', {
       message: 'App status check',
       timestamp: new Date().toISOString()

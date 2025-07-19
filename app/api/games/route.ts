@@ -67,7 +67,9 @@ export async function POST(request: NextRequest) {
     // Allow users to create multiple games - don't restrict to one game per user
 
     // Trigger Pusher event
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_CREATED, { game: newGame });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_CREATED, { game: newGame });
+    }
 
     return NextResponse.json(newGame);
   } catch (error) {
@@ -107,11 +109,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Trigger Pusher events
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
-    await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_JOINED, { 
-      player: userName, 
-      game 
-    });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
+      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_JOINED, { 
+        player: userName, 
+        game 
+      });
+    }
 
     return NextResponse.json(game);
   } catch (error) {

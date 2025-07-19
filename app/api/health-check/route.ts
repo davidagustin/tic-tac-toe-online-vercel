@@ -44,7 +44,9 @@ export async function GET() {
 
     // Check Pusher health
     try {
-      await pusherServer.trigger('health-check', 'ping', { timestamp: Date.now() });
+      if (pusherServer) {
+        await pusherServer.trigger('health-check', 'ping', { timestamp: Date.now() });
+      }
       healthChecks.checks.pusher = {
         status: 'healthy',
       };

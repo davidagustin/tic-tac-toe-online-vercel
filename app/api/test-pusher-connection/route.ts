@@ -4,6 +4,9 @@ import { pusherServer } from '@/lib/pusher';
 export async function GET() {
   try {
     // Test Pusher server connection by triggering a test event
+    if (!pusherServer) {
+      throw new Error('Pusher server not configured');
+    }
     const result = await pusherServer.trigger('test-channel', 'test-event', {
       message: 'Test message',
       timestamp: new Date().toISOString()

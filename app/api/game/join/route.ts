@@ -35,11 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger Pusher events
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
-    await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_JOINED, { 
-      player: userName, 
-      game 
-    });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
+      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_JOINED, { 
+        player: userName, 
+        game 
+      });
+    }
 
     return NextResponse.json({ game });
   } catch (error) {

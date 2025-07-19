@@ -91,27 +91,29 @@ export async function POST(request: NextRequest) {
     games.set(gameId, game);
 
     // Trigger Pusher events
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, {
-      game,
-    });
-
-    await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, {
-      game,
-      move: { index, player },
-    });
-
-    if (winner) {
-      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, {
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, {
         game,
-        winner: game.winner,
       });
 
-      // Update statistics for both players
-      if (game.winner) {
-        // In a real app, you'd update database statistics here
-        console.log(`Game ended. Winner: ${game.winner}`);
-      } else {
-        console.log('Game ended in a draw');
+      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, {
+        game,
+        move: { index, player },
+      });
+
+      if (winner) {
+        await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, {
+          game,
+          winner: game.winner,
+        });
+
+        // Update statistics for both players
+        if (game.winner) {
+          // In a real app, you'd update database statistics here
+          console.log(`Game ended. Winner: ${game.winner}`);
+        } else {
+          console.log('Game ended in a draw');
+        }
       }
     }
 

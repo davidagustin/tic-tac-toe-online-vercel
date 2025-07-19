@@ -85,14 +85,16 @@ export async function POST(
     }
 
     // Trigger Pusher events
-    await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, { game });
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, { game });
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, { game });
 
-    if (game.status === 'finished') {
-      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, { 
-        game, 
-        winner: game.winner 
-      });
+      if (game.status === 'finished') {
+        await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, { 
+          game, 
+          winner: game.winner 
+        });
+      }
     }
 
     return NextResponse.json(game);

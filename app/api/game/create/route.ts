@@ -31,7 +31,9 @@ export async function POST(request: NextRequest) {
     // Allow users to create multiple games - don't restrict to one game per user
 
     // Trigger Pusher event
-    await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_CREATED, { game: newGame });
+    if (pusherServer) {
+      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_CREATED, { game: newGame });
+    }
 
     return NextResponse.json({ game: newGame });
   } catch (error) {
