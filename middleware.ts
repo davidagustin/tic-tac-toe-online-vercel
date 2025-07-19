@@ -204,6 +204,7 @@ export function middleware(request: NextRequest) {
     '/api/test-pusher',
     '/api/debug-env',
     '/api/pusher-config',
+    '/api/test-pusher-connection',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)

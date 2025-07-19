@@ -5,6 +5,7 @@ import Lobby from '@/components/Lobby';
 import Game from '@/components/Game';
 import { usePusher } from '@/hooks/usePusher';
 import { PusherDebug } from '@/components/PusherDebug';
+import { PusherTest } from '@/components/PusherTest';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -255,6 +256,9 @@ export default function Home() {
         
         {/* Debug Component */}
         <PusherDebug />
+        
+        {/* Test Component */}
+        <PusherTest />
       </div>
     );
   }
