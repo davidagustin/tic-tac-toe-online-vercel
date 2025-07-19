@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SecurityValidator, RateLimiter, RequestValidator, SecurityLogger, CSP_HEADERS } from '@/lib/security';
-import { AuthService } from '@/lib/auth';
+import { AuthService } from '@/lib/auth.js';
 
 export async function POST(request: NextRequest) {
   let username: string | undefined;

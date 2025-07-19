@@ -20,7 +20,7 @@ export function useSocket() {
     }
 
     try {
-      const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
+      const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
         transports: ['websocket', 'polling'],
         timeout: 10000,
         reconnection: true,

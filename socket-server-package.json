@@ -1,0 +1,20 @@
+{
+  "name": "tic-tac-toe-socket-server",
+  "version": "1.0.0",
+  "description": "Socket.IO server for Tic-Tac-Toe game",
+  "main": "socket-server.js",
+  "scripts": {
+    "start": "node socket-server.js",
+    "dev": "node socket-server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.4",
+    "crypto": "^1.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["socket.io", "game", "real-time"],
+  "author": "Your Name",
+  "license": "MIT"
+} 

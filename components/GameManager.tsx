@@ -206,9 +206,6 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.log('Joining game:', gameId, 'as user:', userName);
       socket.emit('join game', gameId, userName);
       
-      // Show success message
-      alert('Joining game... You will be redirected to the game board.');
-      
       // Call the parent callback to handle navigation
       onJoinGame(gameId);
     } catch (error: any) {

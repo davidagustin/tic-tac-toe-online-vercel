@@ -1,33 +1,69 @@
-const { createServer } = require('http');
-const { parse } = require('url');
-const next = require('next');
 const { Server } = require('socket.io');
+const { createServer } = require('http');
 const crypto = require('crypto');
 
-// Import database functions
-const { 
-  initializeDatabase, 
-  saveLobbyMessage, 
-  getLobbyMessages, 
-  saveGameMessage, 
-  getGameMessages, 
-  cleanupOldMessages,
-  updateGameStatistics,
-  getUserStatistics
-} = require('./lib/db.js');
+// Mock database functions for now
+const initializeDatabase = async () => {
+  console.log('Mock database initialized');
+};
+
+const saveLobbyMessage = async (text, userName) => {
+  console.log('Mock: Saving lobby message:', { text, userName });
+  return { id: Date.now(), timestamp: new Date() };
+};
+
+const getLobbyMessages = async (limit = 100) => {
+  console.log('Mock: Getting lobby messages');
+  return [
+    { id: 1, text: 'Welcome to the Tic-Tac-Toe Game Lobby! 🎮', user_name: 'System', timestamp: new Date() },
+    { id: 2, text: 'Feel free to chat while waiting for games! 💬', user_name: 'System', timestamp: new Date() }
+  ];
+};
+
+const saveGameMessage = async (gameId, text, userName) => {
+  console.log('Mock: Saving game message:', { gameId, text, userName });
+  return { id: Date.now(), timestamp: new Date() };
+};
+
+const getGameMessages = async (gameId, limit = 50) => {
+  console.log('Mock: Getting game messages for:', gameId);
+  return [];
+};
+
+const cleanupOldMessages = async () => {
+  console.log('Mock: Cleaning up old messages');
+};
 
 // Import auth service
 const { AuthService } = require('./lib/auth');
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
-const socketPort = process.env.SOCKET_PORT || 3001;
-const nextPort = process.env.PORT || 3000;
+const hostname = '0.0.0.0'; // Allow external connections
+const socketPort = process.env.PORT || 3001;
 
-const app = next({ dev, hostname, port: nextPort });
-const handle = app.getRequestHandler();
+// Initialize database
+initializeDatabase().then(() => {
+  console.log('Database initialized successfully');
+}).catch(error => {
+  console.error('Database initialization failed:', error);
+});
 
-// In-memory storage for games (chat is now persistent in database)
+// Create HTTP server
+const httpServer = createServer();
+
+// Create Socket.IO server with CORS configuration for production
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL || "https://tic-tac-toe-online-vercel.vercel.app"
+      : "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
+
+// In-memory storage for games
 const games = new Map();
 const gameCreators = new Map(); // Track which user created which game
 const players = new Map(); // socketId -> { userName, gameId }
@@ -35,7 +71,7 @@ const socketRateLimits = new Map(); // socketId -> { count, resetTime }
 const MAX_CHAT_MESSAGES = 100;
 const MAX_GAME_CHAT_MESSAGES = 50;
 
-// Clean up old messages periodically using database
+// Clean up old messages periodically
 async function performCleanup() {
   try {
     await cleanupOldMessages();
@@ -178,336 +214,28 @@ function logSecurityEvent(event, details, severity = 'low') {
 
 // Validate socket connection
 function validateSocketConnection(socket) {
+  // Basic validation - in production you might want more sophisticated validation
   if (!socket || !socket.id) {
-    return false;
+    throw new Error('Invalid socket connection');
   }
-
-  if (!/^[a-zA-Z0-9_-]+$/.test(socket.id)) {
-    return false;
-  }
-
   return true;
 }
 
-app.prepare().then(async () => {
-  // Initialize database
+// Socket.IO connection handling
+io.on('connection', (socket) => {
   try {
-    await initializeDatabase();
-    console.log('Database initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize database:', error);
-  }
-  const server = createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url, true);
-      await handle(req, res, parsedUrl);
-    } catch (err) {
-      console.error('Error occurred handling', req.url, err);
-      res.statusCode = 500;
-      res.end('internal server error');
-    }
-  });
-
-  const io = new Server(server, {
-    cors: {
-      origin: process.env.NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') : "*",
-      methods: ["GET", "POST"]
-    },
-    transports: ['websocket', 'polling'],
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    upgradeTimeout: 10000,
-    allowEIO3: true,
-    maxHttpBufferSize: 1e6
-  });
-
-  io.on('connection', (socket) => {
-    // Validate socket connection
-    if (!validateSocketConnection(socket)) {
-      logSecurityEvent('INVALID_SOCKET_CONNECTION', { socketId: socket.id }, 'high');
+    validateSocketConnection(socket);
+    console.log('made socket connection', socket.id);
+    
+    // Rate limiting for new connections
+    if (!checkSocketRateLimit(socket.id)) {
+      logSecurityEvent('CONNECTION_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
       socket.disconnect();
       return;
     }
 
-    console.log('made socket connection', socket.id);
-
-    // Handle connection errors
-    socket.on('error', (error) => {
-      console.error('Socket error for', socket.id, ':', error);
-      logSecurityEvent('SOCKET_ERROR', { socketId: socket.id, error: error.message }, 'medium');
-    });
-
-    // Handle disconnection
-    socket.on('disconnect', (reason) => {
-      console.log('socket disconnected', socket.id, 'reason:', reason);
-      
-      // Clean up rate limiting
-      socketRateLimits.delete(socket.id);
-      
-      const player = players.get(socket.id);
-      if (player) {
-        console.log('Player disconnected:', player.userName, 'from game:', player.gameId);
-        
-        const game = games.get(player.gameId);
-        if (game) {
-          // Remove player from game
-          const playerIndex = game.players.indexOf(player.userName);
-          if (playerIndex !== -1) {
-            game.players.splice(playerIndex, 1);
-            console.log('Removed player from game. Remaining players:', game.players);
-            
-            // If no players left, remove game
-            if (game.players.length === 0) {
-              console.log('No players left, removing game:', game.id);
-              games.delete(game.id);
-              // Remove game creator tracking
-              if (game.createdBy === player.userName) {
-                gameCreators.delete(player.userName);
-              }
-              io.emit('game removed', game.id);
-            } else {
-              // Update game status and notify remaining players
-              // Always reset to waiting state when a player leaves
-              game.status = 'waiting';
-              game.board = Array(9).fill(null);
-              game.currentPlayer = 'X';
-              game.winner = null;
-              console.log('Game reset to waiting state due to player disconnect');
-              
-              // Notify remaining players about the disconnect
-              io.emit('player left game', game.id, player.userName, game);
-              io.emit('game updated', game);
-              
-              console.log('Game updated after player disconnect:', game);
-            }
-          }
-        }
-        players.delete(socket.id);
-      }
-    });
-
-    // Handle explicit leave game event
-    socket.on('leave game', (gameId, userName) => {
-      try {
-        console.log('Player leaving game:', userName, 'from game:', gameId);
-        
-        const game = games.get(gameId);
-        if (game) {
-          const playerIndex = game.players.indexOf(userName);
-          if (playerIndex !== -1) {
-            game.players.splice(playerIndex, 1);
-            console.log('Player left game. Remaining players:', game.players);
-            
-            // If no players left, remove game
-            if (game.players.length === 0) {
-              console.log('No players left, removing game:', game.id);
-              games.delete(game.id);
-              // Remove game creator tracking
-              if (game.createdBy === userName) {
-                gameCreators.delete(userName);
-              }
-              io.emit('game removed', game.id);
-            } else {
-              // Update game status and notify remaining players
-              // Always reset to waiting state when a player leaves
-              game.status = 'waiting';
-              game.board = Array(9).fill(null);
-              game.currentPlayer = 'X';
-              game.winner = null;
-              console.log('Game reset to waiting state due to player leaving');
-              
-              // Notify remaining players about the leave
-              io.emit('player left game', game.id, userName, game);
-              io.emit('game updated', game);
-              
-              console.log('Game updated after player left:', game);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error handling leave game:', error);
-        logSecurityEvent('LEAVE_GAME_ERROR', { socketId: socket.id, error: error.message }, 'low');
-      }
-    });
-
-    // Send chat history to new users (async)
-    getLobbyMessages(MAX_CHAT_MESSAGES).then(messages => {
-      socket.emit('chat history', messages);
-    }).catch(error => {
-      console.error('Error loading chat history:', error);
-      socket.emit('chat history', []);
-    });
-
-    // Handle chat event with security
-    socket.on('chat room', async function(data) {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
-          return;
-        }
-
-        // Validate data
-        if (!data || typeof data !== 'object') {
-          throw new Error('Invalid chat data');
-        }
-
-        if (data.text) {
-          data.text = validateMessage(data.text);
-        }
-
-        if (data.userName) {
-          data.userName = validateUsername(data.userName);
-        }
-
-        // Save message to database
-        const savedMessage = await saveLobbyMessage(data.text, data.userName || 'Anonymous');
-        
-        if (!savedMessage) {
-          throw new Error('Failed to save message to database');
-        }
-
-        // Create message object with database ID and timestamp
-        const message = {
-          id: savedMessage.id,
-          text: data.text,
-          userName: data.userName || 'Anonymous',
-          timestamp: savedMessage.timestamp
-        };
-
-        console.log('Lobby chat message saved:', message);
-        io.sockets.emit('new message', message);
-      } catch (error) {
-        logSecurityEvent('INVALID_CHAT_DATA', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Invalid chat data' });
-      }
-    });
-
-    // Handle game chat event with security
-    socket.on('game chat', async function(data) {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
-          return;
-        }
-
-        // Validate data
-        if (!data || typeof data !== 'object') {
-          throw new Error('Invalid game chat data');
-        }
-
-        if (!data.gameId || !data.text || !data.userName) {
-          throw new Error('Missing required game chat data');
-        }
-
-        // Validate game exists and user is in the game
-        const game = games.get(data.gameId);
-        if (!game) {
-          socket.emit('error', { message: 'Game not found' });
-          return;
-        }
-
-        if (!game.players.includes(data.userName)) {
-          socket.emit('error', { message: 'You are not a player in this game' });
-          return;
-        }
-
-        // Validate and sanitize message
-        const validatedText = validateMessage(data.text);
-        const validatedUserName = validateUsername(data.userName);
-
-        // Save message to database
-        const savedMessage = await saveGameMessage(data.gameId, validatedText, validatedUserName);
-        
-        if (!savedMessage) {
-          throw new Error('Failed to save game message to database');
-        }
-
-        // Create message object with database ID and timestamp
-        const message = {
-          id: savedMessage.id,
-          text: validatedText,
-          userName: validatedUserName,
-          gameId: data.gameId,
-          timestamp: savedMessage.timestamp
-        };
-
-        console.log('Game chat message saved:', message);
-        
-        // Broadcast to all players in the game
-        io.sockets.emit('game chat message', message);
-
-      } catch (error) {
-        logSecurityEvent('INVALID_GAME_CHAT_DATA', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Invalid game chat data' });
-      }
-    });
-
-    // Handle request for game chat history
-    socket.on('get game chat history', async function(gameId) {
-      try {
-        // Validate game exists
-        const game = games.get(gameId);
-        if (!game) {
-          socket.emit('error', { message: 'Game not found' });
-          return;
-        }
-
-        // Get game chat history from database
-        const gameChat = await getGameMessages(gameId, MAX_GAME_CHAT_MESSAGES);
-        socket.emit('game chat history', gameChat);
-
-      } catch (error) {
-        logSecurityEvent('GAME_CHAT_HISTORY_ERROR', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Failed to get game chat history' });
-        socket.emit('game chat history', []);
-      }
-    });
-
-    // Handle game board events with security
-    socket.on('game board', function(data) {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
-          return;
-        }
-
-        // Validate board data
-        if (!Array.isArray(data) || data.length !== 3) {
-          throw new Error('Invalid board data');
-        }
-
-        console.log('game board fires', data);
-        io.sockets.emit('game board', data);
-      } catch (error) {
-        logSecurityEvent('INVALID_BOARD_DATA', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Invalid board data' });
-      }
-    });
-
-    socket.on('reset board', () => {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
-          return;
-        }
-
-        console.log('reset board fires');
-        io.sockets.emit('reset board');
-      } catch (error) {
-        logSecurityEvent('RESET_BOARD_ERROR', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Reset board failed' });
-      }
-    });
-
-    socket.on('reset game', (gameId) => {
+    // Handle lobby chat messages
+    socket.on('send lobby message', async (data) => {
       try {
         // Rate limiting
         if (!checkSocketRateLimit(socket.id)) {
@@ -517,50 +245,42 @@ app.prepare().then(async () => {
         }
 
         // Validate inputs
-        const validatedGameId = validateGameId(gameId);
-        
-        console.log('Resetting game:', validatedGameId);
-        const game = games.get(validatedGameId);
-        
-        if (game) {
-          // Reset game state
-          game.board = Array(9).fill(null);
-          game.currentPlayer = 'X';
-          game.winner = null;
-          game.status = 'playing';
-          
-          // Broadcast reset to all clients
-          io.emit('game reset', validatedGameId);
-          console.log('Game reset successfully:', validatedGameId);
-        } else {
-          console.log('Game not found for reset:', validatedGameId);
-          socket.emit('error', { message: 'Game not found' });
-        }
-      } catch (error) {
-        logSecurityEvent('RESET_GAME_ERROR', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Failed to reset game' });
-      }
-    });
-
-    socket.on('console', function(data) {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
+        if (!data || !data.text || !data.userName) {
+          logSecurityEvent('INVALID_LOBBY_MESSAGE_DATA', { socketId: socket.id, data }, 'low');
+          socket.emit('error', { message: 'Invalid message data' });
           return;
         }
 
-        // Validate console data
-        if (!data || typeof data !== 'object') {
-          throw new Error('Invalid console data');
-        }
+        const validatedText = validateMessage(data.text);
+        const validatedUserName = validateUsername(data.userName);
 
-        console.log('console fires', data);
-        io.sockets.emit('console', data);
+        // Save message to database
+        const savedMessage = await saveLobbyMessage(validatedText, validatedUserName);
+        console.log('Lobby chat message saved:', savedMessage);
+
+        // Broadcast to all clients
+        io.emit('lobby message', {
+          id: savedMessage.id,
+          text: validatedText,
+          userName: validatedUserName,
+          timestamp: savedMessage.timestamp
+        });
+
       } catch (error) {
-        logSecurityEvent('INVALID_CONSOLE_DATA', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Invalid console data' });
+        console.error('Error handling lobby message:', error);
+        logSecurityEvent('LOBBY_MESSAGE_ERROR', { socketId: socket.id, error: error.message }, 'low');
+        socket.emit('error', { message: 'Failed to send message' });
+      }
+    });
+
+    // Handle get lobby messages request
+    socket.on('get lobby messages', async () => {
+      try {
+        const messages = await getLobbyMessages(MAX_CHAT_MESSAGES);
+        socket.emit('lobby messages', messages);
+      } catch (error) {
+        console.error('Error getting lobby messages:', error);
+        socket.emit('error', { message: 'Failed to get messages' });
       }
     });
 
@@ -570,13 +290,13 @@ app.prepare().then(async () => {
         // Rate limiting for socket events
         if (!checkSocketRateLimit(socket.id)) {
           logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded. Please wait before creating another game.' });
+          socket.emit('error', { message: 'Rate limit exceeded. Please wait before trying again.' });
           return;
         }
 
-        // Validate game data
+        // Validate inputs
         if (!data || !data.name || !data.createdBy) {
-          logSecurityEvent('INVALID_GAME_DATA', { socketId: socket.id, data }, 'low');
+          logSecurityEvent('INVALID_CREATE_GAME_DATA', { socketId: socket.id, data }, 'low');
           socket.emit('error', { message: 'Invalid game data provided.' });
           return;
         }
@@ -727,7 +447,7 @@ app.prepare().then(async () => {
     });
 
     // Handle game finished event
-    socket.on('game finished', async (gameId, winner) => {
+    socket.on('game finished', (gameId, winner) => {
       try {
         const game = games.get(gameId);
         if (game) {
@@ -740,35 +460,6 @@ app.prepare().then(async () => {
             gameId, 
             winner 
           }, 'low');
-
-          // Update game statistics for both players
-          if (game.players && game.players.length === 2) {
-            const player1 = game.players[0];
-            const player2 = game.players[1];
-            
-            if (winner) {
-              // Determine which player won based on their symbol
-              const player1Symbol = 'X'; // First player is always X
-              const player2Symbol = 'O'; // Second player is always O
-              
-              if (winner === player1Symbol) {
-                // Player 1 won
-                await updateGameStatistics(player1, 'win');
-                await updateGameStatistics(player2, 'loss');
-                console.log(`Updated stats: ${player1} won, ${player2} lost`);
-              } else if (winner === player2Symbol) {
-                // Player 2 won
-                await updateGameStatistics(player1, 'loss');
-                await updateGameStatistics(player2, 'win');
-                console.log(`Updated stats: ${player2} won, ${player1} lost`);
-              }
-            } else {
-              // It's a draw
-              await updateGameStatistics(player1, 'draw');
-              await updateGameStatistics(player2, 'draw');
-              console.log(`Updated stats: ${player1} and ${player2} drew`);
-            }
-          }
 
           // Remove game creator tracking for finished games
           if (game.createdBy) {
@@ -795,30 +486,6 @@ app.prepare().then(async () => {
       } catch (error) {
         console.error('Error getting games list:', error);
         socket.emit('error', { message: 'Failed to get games list.' });
-      }
-    });
-
-    // Handle get user statistics request
-    socket.on('get user statistics', async (userName) => {
-      try {
-        // Rate limiting
-        if (!checkSocketRateLimit(socket.id)) {
-          logSecurityEvent('SOCKET_RATE_LIMIT_EXCEEDED', { socketId: socket.id }, 'medium');
-          socket.emit('error', { message: 'Rate limit exceeded' });
-          return;
-        }
-
-        // Validate username
-        const validatedUserName = validateUsername(userName);
-        
-        console.log('Getting statistics for user:', validatedUserName);
-        const stats = await getUserStatistics(validatedUserName);
-        socket.emit('user statistics', stats);
-        console.log('User statistics sent:', stats);
-      } catch (error) {
-        console.error('Error getting user statistics:', error);
-        logSecurityEvent('GET_USER_STATS_ERROR', { socketId: socket.id, error: error.message }, 'low');
-        socket.emit('error', { message: 'Failed to get user statistics' });
       }
     });
 
@@ -909,8 +576,155 @@ app.prepare().then(async () => {
       }
     });
 
+    // Handle reset game event
+    socket.on('reset game', (gameId) => {
+      try {
+        const game = games.get(gameId);
+        if (game && game.status === 'finished') {
+          console.log('Resetting game:', gameId);
+          
+          // Reset game state
+          game.board = Array(9).fill(null);
+          game.currentPlayer = Math.random() < 0.5 ? 'X' : 'O'; // Randomize first player on reset
+          game.winner = null;
+          game.status = 'playing';
+          
+          console.log('Game reset successfully:', gameId);
+          
+          // Notify all clients
+          io.emit('game reset', gameId);
+          io.emit('game updated', game);
+        }
+      } catch (error) {
+        console.error('Error resetting game:', error);
+      }
+    });
 
-  });
+    // Handle leave game event
+    socket.on('leave game', (gameId, userName) => {
+      try {
+        const game = games.get(gameId);
+        if (game) {
+          console.log('Player leaving game:', userName, 'from game:', gameId);
+          
+          // Remove player from game
+          const playerIndex = game.players.indexOf(userName);
+          if (playerIndex > -1) {
+            game.players.splice(playerIndex, 1);
+          }
+          
+          // Remove player tracking
+          players.delete(socket.id);
+          
+          // If no players left, remove the game
+          if (game.players.length === 0) {
+            console.log('No players left, removing game:', gameId);
+            games.delete(gameId);
+            
+            // Remove game creator tracking
+            if (game.createdBy) {
+              const creatorGameId = gameCreators.get(game.createdBy);
+              if (creatorGameId === gameId) {
+                gameCreators.delete(game.createdBy);
+              }
+            }
+            
+            io.emit('game removed', gameId);
+          } else {
+            // Reset game to waiting state
+            game.status = 'waiting';
+            game.board = Array(9).fill(null);
+            game.currentPlayer = 'X';
+            game.winner = null;
+            
+            console.log('Game reset to waiting state due to player leaving');
+            
+            // Update game
+            const updatedGame = {
+              ...game,
+              players: game.players
+            };
+            
+            console.log('Game updated after player left:', updatedGame);
+            
+            // Notify all clients
+            io.emit('player left game', gameId, userName, updatedGame);
+            io.emit('game updated', updatedGame);
+          }
+        }
+      } catch (error) {
+        console.error('Error handling leave game:', error);
+      }
+    });
+
+    // Handle disconnect
+    socket.on('disconnect', (reason) => {
+      console.log('socket disconnected', socket.id, 'reason:', reason);
+      
+      // Clean up player tracking
+      const playerData = players.get(socket.id);
+      if (playerData) {
+        const { userName, gameId } = playerData;
+        const game = games.get(gameId);
+        
+        if (game) {
+          console.log('Player leaving game:', userName, 'from game:', gameId);
+          
+          // Remove player from game
+          const playerIndex = game.players.indexOf(userName);
+          if (playerIndex > -1) {
+            game.players.splice(playerIndex, 1);
+          }
+          
+          // If no players left, remove the game
+          if (game.players.length === 0) {
+            console.log('No players left, removing game:', gameId);
+            games.delete(gameId);
+            
+            // Remove game creator tracking
+            if (game.createdBy) {
+              const creatorGameId = gameCreators.get(game.createdBy);
+              if (creatorGameId === gameId) {
+                gameCreators.delete(game.createdBy);
+              }
+            }
+            
+            io.emit('game removed', gameId);
+          } else {
+            // Reset game to waiting state
+            game.status = 'waiting';
+            game.board = Array(9).fill(null);
+            game.currentPlayer = 'X';
+            game.winner = null;
+            
+            console.log('Game reset to waiting state due to player leaving');
+            
+            // Update game
+            const updatedGame = {
+              ...game,
+              players: game.players
+            };
+            
+            console.log('Game updated after player left:', updatedGame);
+            
+            // Notify all clients
+            io.emit('player left game', gameId, userName, updatedGame);
+            io.emit('game updated', updatedGame);
+          }
+        }
+        
+        players.delete(socket.id);
+      }
+      
+      // Clean up rate limiting
+      socketRateLimits.delete(socket.id);
+    });
+
+  } catch (error) {
+    console.error('Error in socket connection:', error);
+    logSecurityEvent('SOCKET_CONNECTION_ERROR', { socketId: socket.id, error: error.message }, 'medium');
+    socket.disconnect();
+  }
 
   // Helper function to check for winner
   function checkWinner(board) {
@@ -928,10 +742,14 @@ app.prepare().then(async () => {
     }
     return null;
   }
+});
 
-  server.listen(nextPort, (err) => {
-    if (err) throw err;
-    console.log(`> Ready on http://${hostname}:${nextPort}`);
-    console.log(`> Socket.IO server ready on http://${hostname}:${nextPort}`);
-  });
+// Start the server
+httpServer.listen(socketPort, hostname, (err) => {
+  if (err) throw err;
+  console.log(`> Socket.IO server ready on http://${hostname}:${socketPort}`);
+  console.log(`> Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`> Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+  }
 }); 

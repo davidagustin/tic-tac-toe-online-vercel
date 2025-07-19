@@ -64,7 +64,6 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       // Reset local state
       setBoard(INITIAL_BOARD);
       setGameMessage("");
-      setCurrentPlayer("X");
       setWinner(null);
       setGameStatus('playing');
       
@@ -225,9 +224,10 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         console.log('Game component: resetting game state');
         setBoard(INITIAL_BOARD);
         setGameMessage('');
-        setCurrentPlayer('X');
         setWinner(null);
         setGameStatus('playing');
+        // Request fresh game data to get the new currentPlayer
+        socket.emit('get game', gameId);
       }
     };
 

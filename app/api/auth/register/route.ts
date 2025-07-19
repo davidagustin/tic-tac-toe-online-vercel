@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SecurityValidator, RateLimiter, RequestValidator, SecurityLogger, CSP_HEADERS } from '@/lib/security';
-import { AuthService } from '@/lib/auth';
+import { AuthService } from '@/lib/auth.js';
 
 export async function POST(request: NextRequest) {
   let username: string | undefined;
   let password: string | undefined;
   
   try {
-    // Validate request
-    const { ip } = RequestValidator.validateApiRequest(request);
-    
-    // Rate limiting
-    if (!RateLimiter.checkRateLimit(ip)) {
-      SecurityLogger.logRateLimitExceeded(ip);
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' }, 
-        { status: 429 }
-      );
-    }
-
-    // Validate request body
-    const body = RequestValidator.validateJsonBody(await request.json());
+    // Parse request body
+    const body = await request.json();
     username = body.username;
     password = body.password;
 
@@ -29,57 +16,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
     }
 
-    // Validate and sanitize inputs
-    const validatedUsername = SecurityValidator.validateUsername(username);
+    // Basic validation
+    if (!username || !password) {
+      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
+    }
     
-    // Basic password validation
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters long' }, { status: 400 });
     }
 
     // Check if user already exists
-    const userExists = await AuthService.userExists(validatedUsername);
+    const userExists = await AuthService.userExists(username);
     if (userExists) {
-      SecurityLogger.logSecurityEvent('REGISTER_FAILED', { username: validatedUsername, reason: 'User already exists' }, 'low');
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
 
     // Create new user
-    const newUser = await AuthService.createUser(validatedUsername, password);
+    const newUser = await AuthService.createUser(username, password);
 
-    // Log successful registration
-    SecurityLogger.logSecurityEvent('REGISTER_SUCCESS', { username: validatedUsername }, 'low');
-
-    // Create response with security headers
-    const response = NextResponse.json({
+    // Return success response
+    return NextResponse.json({
       success: true,
       user: {
         id: newUser.id,
-        username: validatedUsername,
+        username: username,
         createdAt: newUser.created_at.toISOString()
       }
     });
-    
-    // Add security headers
-    Object.entries(CSP_HEADERS).forEach(([key, value]) => {
-      response.headers.set(key, value);
-    });
-    
-    return response;
   } catch (error) {
     console.error('Registration error:', error);
-    
-    // Log security events
-    if (error instanceof Error && error.message.includes('Invalid')) {
-      SecurityLogger.logInvalidInput({ username, password }, 'REGISTER');
-    }
     
     // Handle validation errors
     if (error instanceof Error && (error.message.includes('Invalid') || error.message.includes('too long'))) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     
-    // Don't expose internal errors to client
-    return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
+    // Return detailed error for debugging
+    return NextResponse.json({ 
+      error: 'Registration failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 } 

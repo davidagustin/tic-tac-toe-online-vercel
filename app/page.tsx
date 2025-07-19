@@ -251,16 +251,7 @@ export default function Home() {
               {isLogin ? 'Create New Account' : 'Already have an account? Sign In'}
             </button>
 
-            {/* Demo Credentials */}
-            {isLogin && (
-              <div className="mt-6 p-4 bg-white bg-opacity-5 rounded-2xl border border-white border-opacity-10">
-                <h3 className="text-sm font-medium text-purple-200 mb-2">Demo Credentials:</h3>
-                <div className="space-y-1 text-xs text-purple-300">
-                  <div>Username: <span className="text-white">demo</span> | Password: <span className="text-white">demo123</span></div>
-                  <div>Username: <span className="text-white">test</span> | Password: <span className="text-white">test123</span></div>
-                </div>
-              </div>
-            )}
+
           </form>
         </div>
       </div>
