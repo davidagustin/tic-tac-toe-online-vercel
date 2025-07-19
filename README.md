@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tic-Tac-Toe Online - Next.js Version
 
-## Getting Started
+A real-time multiplayer Tic-Tac-Toe game built with Next.js, Socket.IO, and MySQL.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Real-time multiplayer gameplay
+- Live chat rooms for both lobby and game
+- Modern UI with Tailwind CSS
+- TypeScript support
+- Socket.IO for real-time communication
+
+## Prerequisites
+
+- Node.js (v18 or higher)
+- Database (Vercel Postgres recommended - see [Vercel Postgres Setup Guide](./VERCEL_POSTGRES_SETUP.md))
+- npm or yarn
+
+## Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd tic-tac-toe-online-vercel
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up the database**
+   
+   **Option A: Vercel Postgres (Recommended)**
+   - Follow the [Vercel Postgres Setup Guide](./VERCEL_POSTGRES_SETUP.md)
+   - No local database setup required
+   - Automatic environment variable configuration
+   
+   **Option B: Local Postgres**
+   - Install Postgres locally
+   - Run the setup script:
+   ```bash
+   psql -U your_username -d your_database -f db/setup.sql
+   ```
+
+4. **Configure environment variables**
+   Create a `.env.local` file in the root directory:
+   
+   **For Vercel Postgres:**
+   ```env
+   DATABASE_URL=your_vercel_postgres_connection_string
+   ```
+   
+   **For Local Postgres:**
+   ```env
+   DATABASE_URL=postgresql://username:password@localhost:5432/database_name
+   ```
+
+5. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## How to Play
+
+1. Enter your name when prompted
+2. Use the navigation buttons to switch between Lobby and Game
+3. In the Lobby, you can chat with other players
+4. In the Game, you can play Tic-Tac-Toe with real-time updates
+5. The game supports multiple players simultaneously
+
+## Project Structure
+
+```
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   │   └── mvp/          # Chat API endpoints
+│   ├── globals.css       # Global styles
+│   ├── layout.tsx        # Root layout
+│   └── page.tsx          # Home page
+├── components/           # React components
+│   ├── App.tsx          # Main app component
+│   ├── Game.tsx         # Game board component
+│   ├── GameChatRoom.tsx # In-game chat
+│   └── Lobby.tsx        # Lobby component
+├── hooks/               # Custom React hooks
+│   └── useSocket.ts     # Socket.IO hook
+├── lib/                 # Utility libraries
+│   └── db.ts           # Database configuration
+├── db/                  # Database files
+│   └── setup.sql       # Database schema
+└── server.js           # Custom server with Socket.IO
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Technologies Used
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Next.js 15** - React framework
+- **Socket.IO** - Real-time communication
+- **PostgreSQL** - Database (via Vercel Postgres)
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Axios** - HTTP client
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deployment
 
-## Learn More
+This project can be deployed to Vercel or any other platform that supports Node.js applications with custom servers.
 
-To learn more about Next.js, take a look at the following resources:
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
