@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Lobby from '@/components/Lobby';
 import Game from '@/components/Game';
 import { usePusher } from '@/hooks/usePusher';
+import { PusherDebug } from '@/components/PusherDebug';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -251,6 +252,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Lobby userName={user.username} onJoinGame={handleJoinGame} />
         </div>
+        
+        {/* Debug Component */}
+        <PusherDebug />
       </div>
     );
   }
