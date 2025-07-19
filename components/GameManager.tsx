@@ -301,7 +301,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                 <button
                   type="submit"
                   disabled={isLoading || !newGameName.trim()}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   {isLoading ? (
                     <>
@@ -322,7 +322,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                     setNewGameName('');
                   }}
                   disabled={isLoading}
-                  className="bg-white/10 backdrop-blur-sm text-white font-medium py-3 px-6 rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/20 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-white/10 backdrop-blur-sm text-white font-medium py-3 px-6 rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/20 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -425,7 +425,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                     <button
                       onClick={() => handleJoinGame(game.id)}
                       disabled={!isConnected || game.players.includes(userName)}
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all duration-300 hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2"
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all duration-300 hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2 cursor-pointer"
                     >
                       <span>🎮</span>
                       <span>{game.players.includes(userName) ? 'Already Joined' : 'Join Game'}</span>

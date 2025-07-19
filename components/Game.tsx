@@ -25,7 +25,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [winner, setWinner] = useState<string | null>(null);
   const [players, setPlayers] = useState<string[]>([]);
-  const [showPlaceholders, setShowPlaceholders] = useState(false); // Control placeholder visibility
+
 
   console.log('Game component mounted with gameId:', gameId, 'userName:', userName);
   console.log('Initial game status:', gameStatus);
@@ -237,12 +237,25 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         console.log('Game component: updating game after player left');
         setPlayers(updatedGame.players);
         setGameStatus(updatedGame.status);
-        setBoard(updatedGame.board ? updatedGame.board.map((row: any, i: number) => 
-          updatedGame.board.slice(i * 3, (i + 1) * 3)
-        ) : INITIAL_BOARD);
+        
+        // Properly convert 1D board to 2D if it exists
+        if (updatedGame.board && Array.isArray(updatedGame.board)) {
+          const board2D = [];
+          for (let i = 0; i < 3; i++) {
+            board2D.push(updatedGame.board.slice(i * 3, (i + 1) * 3));
+          }
+          setBoard(board2D);
+        } else {
+          // Reset to initial board if no board data
+          setBoard(INITIAL_BOARD);
+        }
+        
         setCurrentPlayer(updatedGame.currentPlayer || 'X');
         setWinner(null);
         setGameMessage(`${leftPlayerName} left the game. Waiting for a new player...`);
+        
+        // Request fresh game data to ensure synchronization
+        socket.emit('get game', gameId);
       }
     };
 
@@ -383,17 +396,6 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
                   }`}
                 >
                   {cell}
-                  {cell === null && isMyTurn && gameStatus === 'playing' && showPlaceholders && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-30">
-                      <span className={`text-2xl ${
-                        getMyPlayerSymbol === 'X' 
-                          ? 'text-blue-400' 
-                          : 'text-red-400'
-                      }`}>
-                        {getMyPlayerSymbol === 'X' ? '❌' : '⭕'}
-                      </span>
-                    </div>
-                  )}
                 </button>
               ))
             )}
@@ -404,28 +406,17 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         <div className="flex justify-center space-x-4">
           <button
             onClick={handleLeaveGame}
-            className="bg-red-500/20 backdrop-blur-sm text-red-300 font-medium py-3 px-6 rounded-xl border border-red-400/30 transition-all duration-300 hover:bg-red-500/30 hover:scale-105"
+            className="bg-red-500/20 backdrop-blur-sm text-red-300 font-medium py-3 px-6 rounded-xl border border-red-400/30 transition-all duration-300 hover:bg-red-500/30 hover:scale-105 cursor-pointer"
           >
             🚪 Leave Game
           </button>
           
-          {gameStatus === 'playing' && (
-            <button
-              onClick={() => setShowPlaceholders(!showPlaceholders)}
-              className={`px-4 py-2 rounded-xl border transition-all duration-300 ${
-                showPlaceholders
-                  ? 'bg-green-500/20 border-green-400/50 text-green-300'
-                  : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-              }`}
-            >
-              {showPlaceholders ? 'Hide Hints' : 'Show Hints'}
-            </button>
-          )}
+
           
           {gameStatus === 'finished' && (
             <button
               onClick={resetGame}
-              className="bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg"
+              className="bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg cursor-pointer"
             >
               Play Again
             </button>

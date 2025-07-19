@@ -73,11 +73,7 @@ export default function App() {
     localStorage.removeItem('ticTacToeUser');
   };
 
-  const handleJoinGame = (gameId: string) => {
-    console.log('App: handleJoinGame called with gameId:', gameId);
-    setCurrentGame({ id: gameId, name: `Game ${gameId}` });
-    setView('game');
-  };
+
 
   const handleBackToLobby = () => {
     setCurrentGame(null);
@@ -186,7 +182,6 @@ export default function App() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <Lobby 
                   userName={user?.username || ''} 
-                  onJoinGame={handleJoinGame}
                 />
               </div>
             )}

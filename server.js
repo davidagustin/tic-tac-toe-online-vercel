@@ -268,13 +268,12 @@ app.prepare().then(() => {
               io.emit('game removed', game.id);
             } else {
               // Update game status and notify remaining players
-              if (game.status === 'playing') {
-                game.status = 'waiting';
-                game.board = Array(9).fill(null);
-                game.currentPlayer = 'X';
-                game.winner = null;
-                console.log('Game reset to waiting state due to player disconnect');
-              }
+              // Always reset to waiting state when a player leaves
+              game.status = 'waiting';
+              game.board = Array(9).fill(null);
+              game.currentPlayer = 'X';
+              game.winner = null;
+              console.log('Game reset to waiting state due to player disconnect');
               
               // Notify remaining players about the disconnect
               io.emit('player left game', game.id, player.userName, game);
@@ -311,13 +310,12 @@ app.prepare().then(() => {
               io.emit('game removed', game.id);
             } else {
               // Update game status and notify remaining players
-              if (game.status === 'playing') {
-                game.status = 'waiting';
-                game.board = Array(9).fill(null);
-                game.currentPlayer = 'X';
-                game.winner = null;
-                console.log('Game reset to waiting state due to player leaving');
-              }
+              // Always reset to waiting state when a player leaves
+              game.status = 'waiting';
+              game.board = Array(9).fill(null);
+              game.currentPlayer = 'X';
+              game.winner = null;
+              console.log('Game reset to waiting state due to player leaving');
               
               // Notify remaining players about the leave
               io.emit('player left game', game.id, userName, game);
