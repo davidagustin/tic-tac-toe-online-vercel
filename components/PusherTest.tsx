@@ -73,21 +73,26 @@ export function PusherTest() {
     }
   };
 
-  return (
-    <div className="fixed top-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg text-xs max-w-xs">
-      <h3 className="font-bold mb-2">Pusher Connection Test</h3>
-      <button
-        onClick={testPusherConnection}
-        disabled={isTesting}
-        className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs mb-2 disabled:opacity-50"
-      >
-        {isTesting ? 'Testing...' : 'Test Connection'}
-      </button>
-      {testResult && (
-        <pre className="whitespace-pre-wrap text-xs">
-          {JSON.stringify(testResult, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
+  // Only show in development
+  if (process.env.NODE_ENV === 'development') {
+    return (
+      <div className="fixed top-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg text-xs max-w-xs">
+        <h3 className="font-bold mb-2">Pusher Connection Test</h3>
+        <button
+          onClick={testPusherConnection}
+          disabled={isTesting}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs mb-2 disabled:opacity-50"
+        >
+          {isTesting ? 'Testing...' : 'Test Connection'}
+        </button>
+        {testResult && (
+          <pre className="whitespace-pre-wrap text-xs">
+            {JSON.stringify(testResult, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+  
+  return null;
 } 
