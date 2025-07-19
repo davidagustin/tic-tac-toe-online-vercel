@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePusher } from '@/hooks/usePusher';
-import type { ChatMessage } from '@/lib/pusher';
+import type { ChatMessage } from '@/lib/pusher-client';
 
 interface GameChatProps {
   userName: string;

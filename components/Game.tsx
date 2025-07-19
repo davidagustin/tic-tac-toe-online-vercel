@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePusher } from '@/hooks/usePusher';
-import type { Game } from '@/lib/pusher';
+import type { Game } from '@/lib/pusher-client';
 
 interface GameProps {
   gameId: string;
