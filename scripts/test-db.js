@@ -4,47 +4,75 @@ const { query, updateGameStatistics, getUserStatistics } = require('../lib/db.js
 // Load environment variables
 require('dotenv').config({ path: '.env.local' });
 
+// Enhanced logging function
+function logTestStep(step, message, data = null) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${step}: ${message}`);
+  if (data) {
+    console.log(`[${timestamp}] ${step} Data:`, JSON.stringify(data, null, 2));
+  }
+}
+
+function logTestError(step, error, context = {}) {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ ${step} FAILED:`);
+  console.error(`[${timestamp}] Error:`, error.message);
+  console.error(`[${timestamp}] Stack:`, error.stack);
+  console.error(`[${timestamp}] Context:`, JSON.stringify(context, null, 2));
+}
+
 async function testDatabase() {
-  console.log('Testing database connection and statistics...');
+  logTestStep('TEST_START', 'Starting database connection and statistics test...');
+  logTestStep('ENV_CHECK', `DATABASE_URL configured: ${!!process.env.DATABASE_URL}`);
   
   if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL not found!');
+    logTestError('ENV_CHECK', new Error('DATABASE_URL not found!'), { 
+      operation: 'environment_check' 
+    });
     return;
   }
 
   try {
     // Test getting statistics for a user
-    console.log('\n1. Testing getUserStatistics...');
+    logTestStep('STATS_GET', 'Testing getUserStatistics...');
     const stats = await getUserStatistics('testuser');
-    console.log('Initial stats for testuser:', stats);
+    logTestStep('STATS_GET', 'Initial stats retrieved successfully', { stats });
 
     // Test updating statistics
-    console.log('\n2. Testing updateGameStatistics...');
+    logTestStep('STATS_UPDATE', 'Testing updateGameStatistics with win...');
     const result = await updateGameStatistics('testuser', 'win');
-    console.log('Update result:', result);
+    logTestStep('STATS_UPDATE', 'Statistics updated successfully', { result });
 
     // Test getting updated statistics
-    console.log('\n3. Testing getUserStatistics after update...');
+    logTestStep('STATS_GET_AFTER', 'Testing getUserStatistics after update...');
     const updatedStats = await getUserStatistics('testuser');
-    console.log('Updated stats for testuser:', updatedStats);
+    logTestStep('STATS_GET_AFTER', 'Updated stats retrieved successfully', { updatedStats });
 
     // Test another update
-    console.log('\n4. Testing another update...');
-    await updateGameStatistics('testuser', 'loss');
-    const finalStats = await getUserStatistics('testuser');
-    console.log('Final stats for testuser:', finalStats);
+    logTestStep('STATS_UPDATE_2', 'Testing another update with loss...');
+    const lossResult = await updateGameStatistics('testuser', 'loss');
+    logTestStep('STATS_UPDATE_2', 'Second statistics update successful', { lossResult });
 
-    console.log('\n✅ Database test completed successfully!');
+    const finalStats = await getUserStatistics('testuser');
+    logTestStep('STATS_FINAL', 'Final stats retrieved successfully', { finalStats });
+
+    logTestStep('TEST_SUCCESS', 'Database test completed successfully!');
   } catch (error) {
-    console.error('❌ Database test failed:', error);
+    logTestError('TEST_DATABASE', error, { 
+      operation: 'database_test',
+      testUser: 'testuser'
+    });
   } finally {
     // Clean up test data
-    console.log('\n🧹 Cleaning up test data...');
+    logTestStep('CLEANUP', 'Cleaning up test data...');
     try {
-      await query('DELETE FROM game_statistics WHERE user_name = $1', ['testuser']);
-      console.log('✅ Test user statistics cleaned up');
+      const cleanupResult = await query('DELETE FROM game_statistics WHERE user_name = $1', ['testuser']);
+      logTestStep('CLEANUP', `Test user statistics cleaned up: ${cleanupResult.length} rows affected`);
     } catch (cleanupError) {
-      console.error('❌ Error cleaning up test data:', cleanupError.message);
+      logTestError('CLEANUP', cleanupError, { 
+        operation: 'cleanup_test_data',
+        testUser: 'testuser'
+      });
     }
   }
 }

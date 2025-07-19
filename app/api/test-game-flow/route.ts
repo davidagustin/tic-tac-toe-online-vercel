@@ -2,30 +2,47 @@ import { NextResponse } from 'next/server';
 import { query, getUserStatistics, updateGameStatistics, saveGameMessage, getGameMessages } from '@/lib/db';
 import { AuthService } from '@/lib/auth';
 
+// Enhanced logging function
+function logTestStep(step: string, message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${step}: ${message}`);
+  if (data) {
+    console.log(`[${timestamp}] ${step} Data:`, JSON.stringify(data, null, 2));
+  }
+}
+
+function logTestError(step: string, error: any, context: any = {}) {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ ${step} FAILED:`);
+  console.error(`[${timestamp}] Error:`, error.message || error);
+  console.error(`[${timestamp}] Stack:`, error.stack);
+  console.error(`[${timestamp}] Context:`, JSON.stringify(context, null, 2));
+}
+
 async function cleanupTestData() {
-  console.log('🧹 Cleaning up test data...');
+  logTestStep('CLEANUP', 'Starting test data cleanup...');
   
   try {
     // Clean up test users
-    await query('DELETE FROM users WHERE username LIKE $1', ['%test%']);
-    console.log('✅ Test users cleaned up');
+    const userResult = await query('DELETE FROM users WHERE username LIKE $1', ['%test%']);
+    logTestStep('CLEANUP', `Test users cleaned up: ${userResult.length} rows affected`);
 
     // Clean up test game statistics
-    await query('DELETE FROM game_statistics WHERE user_name LIKE $1', ['%test%']);
-    await query('DELETE FROM game_statistics WHERE user_name IN ($1, $2)', ['player1', 'player2']);
-    console.log('✅ Test game statistics cleaned up');
+    const statsResult1 = await query('DELETE FROM game_statistics WHERE user_name LIKE $1', ['%test%']);
+    const statsResult2 = await query('DELETE FROM game_statistics WHERE user_name IN ($1, $2)', ['player1', 'player2']);
+    logTestStep('CLEANUP', `Test game statistics cleaned up: ${statsResult1.length + statsResult2.length} rows affected`);
 
     // Clean up test chat messages
-    await query('DELETE FROM game_chat_messages WHERE game_id LIKE $1', ['%test%']);
-    console.log('✅ Test chat messages cleaned up');
+    const chatResult = await query('DELETE FROM game_chat_messages WHERE game_id LIKE $1', ['%test%']);
+    logTestStep('CLEANUP', `Test chat messages cleaned up: ${chatResult.length} rows affected`);
 
     // Clean up test lobby messages (if any were created)
-    await query('DELETE FROM lobby_chat_messages WHERE user_name LIKE $1', ['%test%']);
-    console.log('✅ Test lobby messages cleaned up');
+    const lobbyResult = await query('DELETE FROM lobby_chat_messages WHERE user_name LIKE $1', ['%test%']);
+    logTestStep('CLEANUP', `Test lobby messages cleaned up: ${lobbyResult.length} rows affected`);
 
-    console.log('🎉 All test data cleaned up successfully!');
+    logTestStep('CLEANUP', 'All test data cleaned up successfully!');
   } catch (error) {
-    console.error('❌ Error cleaning up test data:', error);
+    logTestError('CLEANUP', error, { operation: 'cleanup_test_data' });
   }
 }
 
@@ -40,7 +57,8 @@ export async function GET() {
   };
 
   try {
-    console.log('🧪 Starting comprehensive game flow test...');
+    logTestStep('TEST_START', 'Starting comprehensive game flow test...');
+    logTestStep('ENV_CHECK', `DATABASE_URL configured: ${!!process.env.DATABASE_URL}`);
 
     // 1. AUTHENTICATION TESTS
     console.log('\n1️⃣ Testing Authentication...');
