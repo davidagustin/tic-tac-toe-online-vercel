@@ -14,7 +14,8 @@ interface UserStats {
   wins: number;
   losses: number;
   draws: number;
-  total_games: number;
+  totalGames?: number;
+  total_games?: number;
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
@@ -76,7 +77,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
             <span className="text-white text-xl">🎮</span>
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">Total Games</h3>
-          <p className="text-2xl font-bold text-purple-300">{userStats.total_games}</p>
+          <p className="text-2xl font-bold text-purple-300">{(userStats as any).totalGames || (userStats as any).total_games || 0}</p>
         </div>
         
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
@@ -93,7 +94,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">Win Rate</h3>
           <p className="text-2xl font-bold text-yellow-300">
-            {userStats.total_games > 0 ? Math.round((userStats.wins / userStats.total_games) * 100) : 0}%
+            {(userStats.totalGames || userStats.total_games || 0) > 0 ? Math.round((userStats.wins / (userStats.totalGames || userStats.total_games || 1)) * 100) : 0}%
           </p>
         </div>
       </div>
