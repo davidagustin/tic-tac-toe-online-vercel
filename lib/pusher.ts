@@ -30,6 +30,12 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const response = await fetch('/api/pusher-config');
     const config = await response.json();
     
+    console.log('Fetched Pusher config from server:', {
+      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
+      cluster: config.cluster,
+      keyLength: config.key?.length || 0,
+    });
+    
     if (!config.key || !config.cluster) {
       throw new Error('Pusher configuration not available');
     }
@@ -40,7 +46,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
     });
 
     console.log('Pusher client initialized with config from server:', {
-      key: config.key ? 'Set' : 'Not set',
+      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,
     });
