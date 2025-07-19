@@ -25,7 +25,14 @@ const validateEnvironment = () => {
     .map(([key]) => key);
 
   if (missing.length > 0) {
-    throw new Error(`Missing required Pusher environment variables: ${missing.join(', ')}`);
+    console.error(`Missing required Pusher environment variables: ${missing.join(', ')}`);
+    // Return undefined values instead of throwing
+    return {
+      PUSHER_APP_ID: undefined,
+      PUSHER_KEY: undefined,
+      PUSHER_SECRET: undefined,
+      PUSHER_CLUSTER: undefined,
+    };
   }
 
   return required;
