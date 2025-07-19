@@ -57,21 +57,13 @@ export function getPusherClient(): PusherClient | null {
   return pusherClient;
 }
 
-// Debug Pusher configuration
-if (typeof window !== 'undefined') {
-  console.log('Pusher Config:', {
+// Debug Pusher configuration (server-side only)
+if (typeof window === 'undefined') {
+  console.log('Server-side Pusher Config:', {
     key: PUSHER_KEY ? 'Set' : 'Not set',
     cluster: PUSHER_CLUSTER,
     keyLength: PUSHER_KEY?.length || 0,
   });
-  
-  // Test if environment variables are accessible
-  if (!PUSHER_KEY) {
-    console.error('PUSHER_KEY is not set!');
-  }
-  if (!PUSHER_CLUSTER) {
-    console.error('PUSHER_CLUSTER is not set!');
-  }
 }
 
 // Channel names
