@@ -19,12 +19,19 @@ export function usePusher() {
   // Connect to Pusher
   const connect = useCallback(() => {
     try {
+      console.log('Attempting to connect to Pusher...');
+      console.log('Pusher client state:', pusherClient.connection.state);
+      
       // Subscribe to lobby channel
       lobbyChannel.current = pusherClient.subscribe(CHANNELS.LOBBY);
       
       // Connection event handlers
+      pusherClient.connection.bind('connecting', () => {
+        console.log('Pusher connecting...');
+      });
+
       pusherClient.connection.bind('connected', () => {
-        console.log('Pusher connected');
+        console.log('Pusher connected successfully');
         setIsConnected(true);
         setLastError(null);
       });
@@ -36,6 +43,11 @@ export function usePusher() {
 
       pusherClient.connection.bind('error', (error: any) => {
         console.error('Pusher connection error:', error);
+        console.error('Error details:', {
+          code: error.code,
+          data: error.data,
+          message: error.message
+        });
         setLastError(error.message || 'Connection error');
         setIsConnected(false);
       });
@@ -192,10 +204,32 @@ export function usePusher() {
   useEffect(() => {
     connect();
     
+    // Fallback: Load games from API if Pusher fails
+    const loadGamesFromAPI = async () => {
+      try {
+        const response = await fetch('/api/game/list');
+        if (response.ok) {
+          const gamesData = await response.json();
+          setGames(gamesData);
+        }
+      } catch (error) {
+        console.error('Failed to load games from API:', error);
+      }
+    };
+
+    // Try to load games after a delay if not connected
+    const timeout = setTimeout(() => {
+      if (!isConnected) {
+        console.log('Pusher not connected, loading games from API...');
+        loadGamesFromAPI();
+      }
+    }, 3000);
+
     return () => {
+      clearTimeout(timeout);
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, isConnected]);
 
   return {
     isConnected,

@@ -175,15 +175,48 @@ export function middleware(request: NextRequest) {
     '/.vercel',
   ];
 
-  // Allow authentication API endpoints
+  // Allow static assets and public files
+  const allowedStaticPaths = [
+    '/favicon.ico',
+    '/manifest.json',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/_next/static',
+    '/_next/image',
+  ];
+
+  // Check if this is an allowed static path
+  const isAllowedStaticPath = allowedStaticPaths.some(allowedPath => url.startsWith(allowedPath));
+
+  // Allow authentication and game API endpoints
   const allowedApiPaths = [
     '/api/auth/login',
     '/api/auth/register',
     '/api/mvp',
+    '/api/game/list',
+    '/api/game/create',
+    '/api/game/join',
+    '/api/game/move',
+    '/api/games',
+    '/api/chat',
+    '/api/stats',
+    '/api/clear-auth',
+    '/api/test-pusher',
   ];
 
-  // Check if this is an allowed API path
-  const isAllowedApiPath = allowedApiPaths.some(allowedPath => url === allowedPath);
+  // Check if this is an allowed API path (including dynamic routes)
+  const isAllowedApiPath = allowedApiPaths.some(allowedPath => {
+    if (allowedPath === url) return true;
+    // Handle dynamic routes
+    if (allowedPath === '/api/stats' && url.startsWith('/api/stats/')) return true;
+    if (allowedPath === '/api/games' && url.startsWith('/api/games/')) return true;
+    return false;
+  });
+
+  // Allow static assets to pass through
+  if (isAllowedStaticPath) {
+    return NextResponse.next();
+  }
 
   for (const path of sensitivePaths) {
     if (url.startsWith(path)) {

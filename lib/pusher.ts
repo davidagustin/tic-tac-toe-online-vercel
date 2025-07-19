@@ -15,8 +15,26 @@ export const pusherClient = new PusherClient(
   process.env.NEXT_PUBLIC_PUSHER_KEY || '',
   {
     cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2',
+    forceTLS: true,
   }
 );
+
+// Debug Pusher configuration
+if (typeof window !== 'undefined') {
+  console.log('Pusher Config:', {
+    key: process.env.NEXT_PUBLIC_PUSHER_KEY ? 'Set' : 'Not set',
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2',
+    keyLength: process.env.NEXT_PUBLIC_PUSHER_KEY?.length || 0,
+  });
+  
+  // Test if environment variables are accessible
+  if (!process.env.NEXT_PUBLIC_PUSHER_KEY) {
+    console.error('PUSHER_KEY is not set!');
+  }
+  if (!process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
+    console.error('PUSHER_CLUSTER is not set!');
+  }
+}
 
 // Channel names
 export const CHANNELS = {
