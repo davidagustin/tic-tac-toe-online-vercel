@@ -330,6 +330,77 @@ app.prepare().then(async () => {
       }
     });
 
+    // Handle user sign out event
+    socket.on('user signout', (userName) => {
+      try {
+        console.log('User signing out:', userName);
+        
+        // Find all games created by this user
+        const createdGameId = gameCreators.get(userName);
+        if (createdGameId) {
+          const createdGame = games.get(createdGameId);
+          if (createdGame) {
+            console.log('Cleaning up game created by user:', userName, 'Game ID:', createdGameId);
+            
+            // Remove all players from the game
+            createdGame.players = [];
+            createdGame.status = 'waiting';
+            createdGame.board = Array(9).fill(null);
+            createdGame.currentPlayer = null;
+            createdGame.winner = null;
+            
+            // Remove the game
+            games.delete(createdGameId);
+            gameCreators.delete(userName);
+            
+            // Notify all clients that the game was removed
+            io.sockets.emit('game removed', createdGameId);
+            console.log('Game removed due to creator sign out:', createdGameId);
+          }
+        }
+        
+        // Find all games where this user is a player (but not the creator)
+        for (const [gameId, game] of games.entries()) {
+          if (game.players.includes(userName) && game.createdBy !== userName) {
+            console.log('Removing user from game:', userName, 'Game ID:', gameId);
+            
+            // Remove user from the game
+            const playerIndex = game.players.indexOf(userName);
+            if (playerIndex !== -1) {
+              game.players.splice(playerIndex, 1);
+              
+              // If no players left, remove the game
+              if (game.players.length === 0) {
+                console.log('No players left, removing game:', gameId);
+                games.delete(gameId);
+                io.sockets.emit('game removed', gameId);
+              } else {
+                // Reset game to waiting state
+                game.status = 'waiting';
+                game.board = Array(9).fill(null);
+                game.currentPlayer = null;
+                game.winner = null;
+                
+                // Notify remaining players
+                io.sockets.emit('player left game', gameId, userName, game);
+                io.sockets.emit('game updated', game);
+                console.log('Game reset to waiting state due to player sign out');
+              }
+            }
+          }
+        }
+        
+        // Remove player from players map
+        players.delete(socket.id);
+        
+        console.log('User sign out cleanup completed for:', userName);
+        
+      } catch (error) {
+        console.error('Error handling user sign out:', error);
+        logSecurityEvent('USER_SIGNOUT_ERROR', { socketId: socket.id, userName, error: error.message }, 'medium');
+      }
+    });
+
     // Send chat history to new users (async)
     getLobbyMessages(MAX_CHAT_MESSAGES).then(messages => {
       socket.emit('chat history', messages);
@@ -726,7 +797,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // Handle game finished event
+    // Handle game finished event (legacy - statistics now handled in make move)
     socket.on('game finished', async (gameId, winner) => {
       try {
         const game = games.get(gameId);
@@ -734,41 +805,12 @@ app.prepare().then(async () => {
           game.status = 'finished';
           game.winner = winner;
           
-          console.log('Game finished:', gameId, 'Winner:', winner);
+          console.log('Game finished event received:', gameId, 'Winner:', winner);
           logSecurityEvent('GAME_FINISHED', { 
             socketId: socket.id, 
             gameId, 
             winner 
           }, 'low');
-
-          // Update game statistics for both players
-          if (game.players && game.players.length === 2) {
-            const player1 = game.players[0];
-            const player2 = game.players[1];
-            
-            if (winner) {
-              // Determine which player won based on their symbol
-              const player1Symbol = 'X'; // First player is always X
-              const player2Symbol = 'O'; // Second player is always O
-              
-              if (winner === player1Symbol) {
-                // Player 1 won
-                await updateGameStatistics(player1, 'win');
-                await updateGameStatistics(player2, 'loss');
-                console.log(`Updated stats: ${player1} won, ${player2} lost`);
-              } else if (winner === player2Symbol) {
-                // Player 2 won
-                await updateGameStatistics(player1, 'loss');
-                await updateGameStatistics(player2, 'win');
-                console.log(`Updated stats: ${player2} won, ${player1} lost`);
-              }
-            } else {
-              // It's a draw
-              await updateGameStatistics(player1, 'draw');
-              await updateGameStatistics(player2, 'draw');
-              console.log(`Updated stats: ${player1} and ${player2} drew`);
-            }
-          }
 
           // Remove game creator tracking for finished games
           if (game.createdBy) {
@@ -849,7 +891,7 @@ app.prepare().then(async () => {
       }
     });
 
-    socket.on('make move', (gameId, index, player) => {
+    socket.on('make move', async (gameId, index, player) => {
       try {
         // Rate limiting
         if (!checkSocketRateLimit(socket.id)) {
@@ -881,8 +923,39 @@ app.prepare().then(async () => {
           if (winner) {
             game.winner = winner;
             game.status = 'finished';
+            console.log('Game won by:', winner);
           } else if (game.board.every(cell => cell !== null)) {
             game.status = 'finished';
+            console.log('Game ended in draw');
+          }
+          
+          // Update game statistics if game is finished
+          if (game.status === 'finished' && game.players && game.players.length === 2) {
+            const player1 = game.players[0];
+            const player2 = game.players[1];
+            
+            if (winner) {
+              // Determine which player won based on their symbol
+              const player1Symbol = 'X'; // First player is always X
+              const player2Symbol = 'O'; // Second player is always O
+              
+              if (winner === player1Symbol) {
+                // Player 1 won
+                await updateGameStatistics(player1, 'win');
+                await updateGameStatistics(player2, 'loss');
+                console.log(`Updated stats: ${player1} won, ${player2} lost`);
+              } else if (winner === player2Symbol) {
+                // Player 2 won
+                await updateGameStatistics(player1, 'loss');
+                await updateGameStatistics(player2, 'win');
+                console.log(`Updated stats: ${player2} won, ${player1} lost`);
+              }
+            } else {
+              // It's a draw
+              await updateGameStatistics(player1, 'draw');
+              await updateGameStatistics(player2, 'draw');
+              console.log(`Updated stats: ${player1} and ${player2} drew`);
+            }
           }
           
           // Log move

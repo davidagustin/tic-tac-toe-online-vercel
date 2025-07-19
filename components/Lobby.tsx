@@ -7,6 +7,7 @@ import ChatRoom from './ChatRoom';
 
 interface LobbyProps {
   userName: string;
+  onJoinGame?: (gameId: string) => void;
 }
 
 interface UserStats {
@@ -16,7 +17,7 @@ interface UserStats {
   total_games: number;
 }
 
-export default function Lobby({ userName }: LobbyProps) {
+export default function Lobby({ userName, onJoinGame }: LobbyProps) {
   const { socket, isConnected } = useSocket();
   const [view, setView] = useState<'games' | 'chat'>('games');
   const [userStats, setUserStats] = useState<UserStats>({
@@ -51,6 +52,17 @@ export default function Lobby({ userName }: LobbyProps) {
     };
   }, [socket, userName, refreshUserStats]);
 
+  // Cleanup effect to notify server when user signs out
+  useEffect(() => {
+    return () => {
+      // This cleanup function runs when the component unmounts (user signs out)
+      if (socket && userName) {
+        console.log('User signing out, notifying server:', userName);
+        socket.emit('user signout', userName);
+      }
+    };
+  }, [socket, userName]);
+
   // Refresh stats when returning to lobby (e.g., after a game)
   useEffect(() => {
     // Refresh stats every 30 seconds to keep them updated
@@ -62,8 +74,10 @@ export default function Lobby({ userName }: LobbyProps) {
   }, [refreshUserStats]);
 
   const handleJoinGame = (gameId: string) => {
-    // This will be handled by the parent component
     console.log('Joining game:', gameId);
+    if (onJoinGame) {
+      onJoinGame(gameId);
+    }
   };
 
   return (

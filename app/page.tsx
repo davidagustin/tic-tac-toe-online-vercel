@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Lobby from '@/components/Lobby';
+import Game from '@/components/Game';
+import { useSocket } from '@/hooks/useSocket';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -33,6 +35,8 @@ export default function Home() {
   const [success, setSuccess] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
+  const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
+  const { socket } = useSocket();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,15 +87,98 @@ export default function Home() {
     setSuccess('');
   };
 
-  const handleSignOut = () => {
-    setUser(null);
-    setShowLobby(false);
-    setSuccess('');
-    setError('');
+  const handleJoinGame = (gameId: string) => {
+    if (user) {
+      console.log('Joining game:', gameId, 'as user:', user.username);
+      setCurrentGame({ gameId, userName: user.username });
+    }
   };
 
-  // If user is authenticated and lobby should be shown, display the lobby
+  const handleBackToLobby = () => {
+    console.log('Returning to lobby');
+    setCurrentGame(null);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      // If user is in a game, leave the game first
+      if (currentGame && socket) {
+        console.log('Leaving game before sign out:', currentGame.gameId);
+        socket.emit('leave game', currentGame.gameId);
+      }
+
+      // Notify server about user sign out for complete cleanup
+      if (socket && user?.username) {
+        console.log('Notifying server about user sign out:', user.username);
+        socket.emit('user signout', user.username);
+      }
+
+      // Notify server to clean up user's games and connections
+      await fetch('/api/clear-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          username: user?.username,
+          action: 'signout'
+        }),
+      });
+    } catch (error) {
+      console.error('Error clearing auth:', error);
+    }
+    
+    // Clear local state
+    setUser(null);
+    setShowLobby(false);
+    setCurrentGame(null);
+    setSuccess('');
+    setError('');
+    
+    // Clear localStorage
+    localStorage.removeItem('ticTacToeUser');
+  };
+
+  // If user is authenticated and lobby should be shown, display the lobby or game
   if (user && showLobby) {
+    // If there's an active game, show the game component
+    if (currentGame) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 animate-fadeIn">
+          {/* Header with user info and sign out */}
+          <div className="bg-white/10 backdrop-blur-lg border-b border-white/20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center py-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center">
+                    <span className="text-white text-lg">🎮</span>
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white">Tic-Tac-Toe Online</h1>
+                    <p className="text-purple-200 text-sm">Welcome, {user.username}!</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="bg-white/10 backdrop-blur-sm text-white font-medium py-2 px-4 rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/20 hover:scale-105"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Game Content */}
+          <Game 
+            gameId={currentGame.gameId} 
+            userName={currentGame.userName} 
+            onBackToLobby={handleBackToLobby} 
+          />
+        </div>
+      );
+    }
+
+    // Otherwise show the lobby
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 animate-fadeIn">
         {/* Header with user info and sign out */}
@@ -119,7 +206,7 @@ export default function Home() {
 
         {/* Lobby Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Lobby userName={user.username} />
+          <Lobby userName={user.username} onJoinGame={handleJoinGame} />
         </div>
       </div>
     );

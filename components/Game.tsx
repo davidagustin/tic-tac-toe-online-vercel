@@ -29,6 +29,8 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
 
   console.log('Game component mounted with gameId:', gameId, 'userName:', userName);
   console.log('Initial game status:', gameStatus);
+  console.log('Socket connected:', isConnected);
+  console.log('Socket object:', socket);
 
   // Track game status changes
   useEffect(() => {
@@ -153,11 +155,13 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   }, [socket, board, currentPlayer, isGameEnded, isMyTurn, gameStatus, gameId, gameCompletionCheck]);
 
   useEffect(() => {
+    console.log('Game component useEffect: socket available:', !!socket);
     if (!socket) return;
 
     // Request current game data when component mounts
     console.log('Game component: requesting current game data for gameId:', gameId);
     socket.emit('get game', gameId);
+    console.log('Game component: get game request sent');
 
     const handleMoveMade = (moveGameId: string, index: number, player: string, nextPlayer: string, gameWinner: string | null, status: string) => {
       if (moveGameId === gameId) {
@@ -184,10 +188,13 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
 
     const handleGameStarted = (startedGameId: string) => {
       console.log('Game component: game started event received for game:', startedGameId);
+      console.log('Current gameId:', gameId);
+      console.log('Event matches current game:', startedGameId === gameId);
       if (startedGameId === gameId) {
         console.log('Game component: updating game status to playing');
         setGameStatus('playing');
         setGameMessage('Game started!');
+        console.log('Game status updated to playing');
       }
     };
 
@@ -202,8 +209,13 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
 
     const handleGameData = (gameData: any) => {
       console.log('Game component: received game data:', gameData);
+      console.log('Current gameId:', gameId);
+      console.log('Data matches current game:', gameData && gameData.id === gameId);
       if (gameData && gameData.id === gameId) {
         console.log('Game component: updating with received game data');
+        console.log('Setting players:', gameData.players || []);
+        console.log('Setting game status:', gameData.status || 'waiting');
+        console.log('Setting current player:', gameData.currentPlayer || 'X');
         setPlayers(gameData.players || []);
         setGameStatus(gameData.status || 'waiting');
         setCurrentPlayer(gameData.currentPlayer || 'X');
@@ -214,7 +226,9 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
             board2D.push(gameData.board.slice(i * 3, (i + 1) * 3));
           }
           setBoard(board2D);
+          console.log('Board updated to:', board2D);
         }
+        console.log('Game data update completed');
       }
     };
 
@@ -259,12 +273,25 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       }
     };
 
+    const handleGameRemoved = (removedGameId: string) => {
+      console.log('Game component: game removed event received for game:', removedGameId);
+      if (removedGameId === gameId) {
+        console.log('Game component: current game was removed, returning to lobby');
+        setGameMessage('Game was removed. Returning to lobby...');
+        // Return to lobby after a brief delay to show the message
+        setTimeout(() => {
+          onBackToLobby();
+        }, 2000);
+      }
+    };
+
     socket.on('move made', handleMoveMade);
     socket.on('game started', handleGameStarted);
     socket.on('game updated', handleGameUpdated);
     socket.on('game data', handleGameData);
     socket.on('game reset', handleGameReset);
     socket.on('player left game', handlePlayerLeftGame);
+    socket.on('game removed', handleGameRemoved);
 
     return () => {
       socket.off('move made', handleMoveMade);
@@ -273,6 +300,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       socket.off('game data', handleGameData);
       socket.off('game reset', handleGameReset);
       socket.off('player left game', handlePlayerLeftGame);
+      socket.off('game removed', handleGameRemoved);
     };
   }, [socket, gameId, userName, onBackToLobby, handleLeaveGame]);
 
