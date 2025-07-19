@@ -12,6 +12,33 @@ const { AuthService } = require('../lib/auth.js');
 // Load environment variables
 require('dotenv').config({ path: '.env.local' });
 
+async function cleanupTestData() {
+  console.log('\n🧹 Cleaning up test data...');
+  
+  try {
+    // Clean up test users
+    await query('DELETE FROM users WHERE username LIKE $1', ['%test%']);
+    console.log('✅ Test users cleaned up');
+
+    // Clean up test game statistics
+    await query('DELETE FROM game_statistics WHERE user_name LIKE $1', ['%test%']);
+    await query('DELETE FROM game_statistics WHERE user_name IN ($1, $2)', ['player1', 'player2']);
+    console.log('✅ Test game statistics cleaned up');
+
+    // Clean up test chat messages
+    await query('DELETE FROM game_chat_messages WHERE game_id LIKE $1', ['%test%']);
+    console.log('✅ Test chat messages cleaned up');
+
+    // Clean up test lobby messages (if any were created)
+    await query('DELETE FROM lobby_chat_messages WHERE user_name LIKE $1', ['%test%']);
+    console.log('✅ Test lobby messages cleaned up');
+
+    console.log('🎉 All test data cleaned up successfully!');
+  } catch (error) {
+    console.error('❌ Error cleaning up test data:', error.message);
+  }
+}
+
 async function testGameFlow() {
   console.log('🧪 Starting comprehensive game flow test...\n');
 
@@ -228,6 +255,9 @@ async function testGameFlow() {
   } catch (error) {
     console.error('❌ Game flow test failed:', error);
     throw error;
+  } finally {
+    // Always clean up test data, even if tests fail
+    await cleanupTestData();
   }
 }
 

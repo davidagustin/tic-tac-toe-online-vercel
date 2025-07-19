@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const { updateGameStatistics, getUserStatistics } = require('../lib/db.js');
+const { query, updateGameStatistics, getUserStatistics } = require('../lib/db.js');
 
 // Load environment variables
 require('dotenv').config({ path: '.env.local' });
@@ -37,6 +37,15 @@ async function testDatabase() {
     console.log('\n✅ Database test completed successfully!');
   } catch (error) {
     console.error('❌ Database test failed:', error);
+  } finally {
+    // Clean up test data
+    console.log('\n🧹 Cleaning up test data...');
+    try {
+      await query('DELETE FROM game_statistics WHERE user_name = $1', ['testuser']);
+      console.log('✅ Test user statistics cleaned up');
+    } catch (cleanupError) {
+      console.error('❌ Error cleaning up test data:', cleanupError.message);
+    }
   }
 }
 

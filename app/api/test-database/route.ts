@@ -16,6 +16,9 @@ export async function GET() {
     // Get final stats
     const finalStats = await getUserStatistics(testUser);
     
+    // Clean up test data
+    await query('DELETE FROM game_statistics WHERE user_name = $1', [testUser]);
+    
     return NextResponse.json({
       success: true,
       message: 'Database connection and operations successful',
@@ -30,6 +33,7 @@ export async function GET() {
           final: finalStats
         }
       },
+      cleanup: 'Test user statistics cleaned up',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

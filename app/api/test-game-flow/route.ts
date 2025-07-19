@@ -2,6 +2,33 @@ import { NextResponse } from 'next/server';
 import { query, getUserStatistics, updateGameStatistics, saveGameMessage, getGameMessages } from '@/lib/db';
 import { AuthService } from '@/lib/auth';
 
+async function cleanupTestData() {
+  console.log('🧹 Cleaning up test data...');
+  
+  try {
+    // Clean up test users
+    await query('DELETE FROM users WHERE username LIKE $1', ['%test%']);
+    console.log('✅ Test users cleaned up');
+
+    // Clean up test game statistics
+    await query('DELETE FROM game_statistics WHERE user_name LIKE $1', ['%test%']);
+    await query('DELETE FROM game_statistics WHERE user_name IN ($1, $2)', ['player1', 'player2']);
+    console.log('✅ Test game statistics cleaned up');
+
+    // Clean up test chat messages
+    await query('DELETE FROM game_chat_messages WHERE game_id LIKE $1', ['%test%']);
+    console.log('✅ Test chat messages cleaned up');
+
+    // Clean up test lobby messages (if any were created)
+    await query('DELETE FROM lobby_chat_messages WHERE user_name LIKE $1', ['%test%']);
+    console.log('✅ Test lobby messages cleaned up');
+
+    console.log('🎉 All test data cleaned up successfully!');
+  } catch (error) {
+    console.error('❌ Error cleaning up test data:', error);
+  }
+}
+
 export async function GET() {
   const testResults: any = {
     auth: {},
@@ -222,18 +249,27 @@ export async function GET() {
     console.log('🎉 Game flow test completed!');
     console.log(`✅ ${testResults.summary.passedTests}/${testResults.summary.totalTests} tests passed`);
 
+    // Clean up test data after tests complete
+    await cleanupTestData();
+
     return NextResponse.json({
       success: allTestsPassed,
       message: allTestsPassed ? 'All game flow tests passed!' : 'Some tests failed',
-      results: testResults
+      results: testResults,
+      cleanup: 'Test data cleaned up automatically'
     });
 
   } catch (error) {
     console.error('❌ Game flow test failed:', error);
+    
+    // Clean up test data even if tests fail
+    await cleanupTestData();
+    
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Game flow test failed',
-      results: testResults
+      results: testResults,
+      cleanup: 'Test data cleaned up despite test failure'
     }, { status: 500 });
   }
 } 
