@@ -33,7 +33,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
     losses: playerStats.losses,
     draws: playerStats.draws,
     totalGames: playerStats.totalGames,
-    total_games: (playerStats as any).total_games
+    total_games: (playerStats as any).total_games || playerStats.totalGames
   } : {
     wins: 0,
     losses: 0,
@@ -100,7 +100,10 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">Win Rate</h3>
           <p className="text-2xl font-bold text-yellow-300">
-            {(userStats.totalGames || userStats.total_games || 0) > 0 ? Math.round((userStats.wins / (userStats.totalGames || userStats.total_games || 1)) * 100) : 0}%
+            {(() => {
+              const totalGames = userStats.totalGames || userStats.total_games || 0;
+              return totalGames > 0 ? Math.round((userStats.wins / totalGames) * 100) : 0;
+            })()}%
           </p>
         </div>
       </div>
