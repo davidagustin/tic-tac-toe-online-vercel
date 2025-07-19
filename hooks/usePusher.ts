@@ -67,6 +67,32 @@ export function usePusher() {
         setLastError(error.message || 'Connection error');
         setIsConnected(false);
         setIsInitializing(false);
+        
+        // If connection fails, start fallback immediately
+        if (!isUsingFallback) {
+          console.log('Starting fallback due to connection error...');
+          loadGamesFromAPI();
+          startPolling();
+        }
+      });
+
+      // Set a timeout for connection
+      const connectionTimeout = setTimeout(() => {
+        if (!isConnected && !isUsingFallback) {
+          console.log('Pusher connection timeout, starting fallback...');
+          loadGamesFromAPI();
+          startPolling();
+        }
+      }, 5000);
+
+      // Clean up timeout when connected
+      pusherClient.connection.bind('connected', () => {
+        clearTimeout(connectionTimeout);
+      });
+
+      // Clean up timeout when error occurs
+      pusherClient.connection.bind('error', () => {
+        clearTimeout(connectionTimeout);
       });
 
       // Lobby event handlers
@@ -286,7 +312,7 @@ export function usePusher() {
         loadGamesFromAPI();
         pollInterval = startPolling();
       }
-    }, 5000);
+    }, 3000); // Reduced timeout for faster fallback
 
     return () => {
       clearTimeout(timeout);
