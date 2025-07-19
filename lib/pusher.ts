@@ -13,28 +13,15 @@ const validateEnvironment = () => {
     };
   }
 
+  // Safe environment variable access
   const required = {
-    PUSHER_APP_ID: process.env.PUSHER_APP_ID,
-    PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
-    PUSHER_SECRET: process.env.PUSHER_SECRET,
-    PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    PUSHER_APP_ID: process.env.PUSHER_APP_ID || undefined,
+    PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY || undefined,
+    PUSHER_SECRET: process.env.PUSHER_SECRET || undefined,
+    PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || undefined,
   };
 
-  const missing = Object.entries(required)
-    .filter(([_, value]) => !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    console.error(`Missing required Pusher environment variables: ${missing.join(', ')}`);
-    // Return undefined values instead of throwing
-    return {
-      PUSHER_APP_ID: undefined,
-      PUSHER_KEY: undefined,
-      PUSHER_SECRET: undefined,
-      PUSHER_CLUSTER: undefined,
-    };
-  }
-
+  // Always return the values, don't throw errors
   return required;
 };
 
