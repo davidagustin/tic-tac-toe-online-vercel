@@ -33,6 +33,8 @@ export const pusherServer = new PusherServer({
   useTLS: true,
   // Security settings
   encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
+  // Additional settings for better compatibility
+  host: `api-${env.PUSHER_CLUSTER}.pusherapp.com`,
 });
 
 // Client-side Pusher instance - will be initialized with config from server
@@ -44,6 +46,10 @@ const getPusherClientConfig = (key: string, cluster: string) => ({
   forceTLS: true,
   // Performance settings
   disableStats: true, // Disable stats collection for better performance
+  // Additional settings for better compatibility
+  wsHost: `ws-${cluster}.pusherapp.com`,
+  wsPort: 443,
+  wssPort: 443,
 });
 
 // Function to initialize Pusher client with config from server
