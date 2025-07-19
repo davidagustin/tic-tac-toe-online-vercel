@@ -1,8 +1,18 @@
 import PusherServer from 'pusher';
 import PusherClient from 'pusher-js';
 
-// Environment validation
+// Environment validation (server-side only)
 const validateEnvironment = () => {
+  // Only validate on server-side
+  if (typeof window !== 'undefined') {
+    return {
+      PUSHER_APP_ID: undefined,
+      PUSHER_KEY: undefined,
+      PUSHER_SECRET: undefined,
+      PUSHER_CLUSTER: undefined,
+    };
+  }
+
   const required = {
     PUSHER_APP_ID: process.env.PUSHER_APP_ID,
     PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
@@ -21,21 +31,35 @@ const validateEnvironment = () => {
   return required;
 };
 
-// Get validated environment variables
-const env = validateEnvironment();
+// Get validated environment variables (server-side only)
+const env = typeof window === 'undefined' ? validateEnvironment() : {
+  PUSHER_APP_ID: undefined,
+  PUSHER_KEY: undefined,
+  PUSHER_SECRET: undefined,
+  PUSHER_CLUSTER: undefined,
+};
 
-// Server-side Pusher instance with best practices
-export const pusherServer = new PusherServer({
-  appId: env.PUSHER_APP_ID!,
-  key: env.PUSHER_KEY!,
-  secret: env.PUSHER_SECRET!,
-  cluster: env.PUSHER_CLUSTER!,
-  useTLS: true,
-  // Security settings
-  encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
-  // Additional settings for better compatibility
-  host: `api-${env.PUSHER_CLUSTER}.pusherapp.com`,
-});
+// Server-side Pusher instance with best practices (server-side only)
+const createPusherServer = () => {
+  if (typeof window !== 'undefined') {
+    throw new Error('PusherServer can only be created on the server-side');
+  }
+  
+  const serverEnv = validateEnvironment();
+  return new PusherServer({
+    appId: serverEnv.PUSHER_APP_ID!,
+    key: serverEnv.PUSHER_KEY!,
+    secret: serverEnv.PUSHER_SECRET!,
+    cluster: serverEnv.PUSHER_CLUSTER!,
+    useTLS: true,
+    // Security settings
+    encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
+    // Additional settings for better compatibility
+    host: `api-${serverEnv.PUSHER_CLUSTER}.pusherapp.com`,
+  });
+};
+
+export const pusherServer = typeof window === 'undefined' ? createPusherServer() : null;
 
 // Client-side Pusher instance - will be initialized with config from server
 let pusherClient: PusherClient | null = null;
@@ -288,6 +312,10 @@ export class PusherUtils {
       }
 
       const sanitizedData = this.sanitizeData(data);
+
+      if (!pusherServer) {
+        throw new Error('PusherServer is not available (client-side)');
+      }
 
       await pusherServer.trigger(channel, event, sanitizedData);
       
