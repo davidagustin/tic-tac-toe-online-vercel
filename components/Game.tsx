@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSocket } from '@/hooks/useSocket';
+import { usePusher } from '@/hooks/usePusher';
+import type { Game } from '@/lib/pusher';
 
 interface GameProps {
   gameId: string;
@@ -18,454 +19,229 @@ const INITIAL_BOARD: BoardState = [
 ];
 
 export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
-  const { socket, isConnected } = useSocket();
-  const [currentPlayer, setCurrentPlayer] = useState<string>("X");
+  const { isConnected, currentGame, joinGame, leaveGame } = usePusher();
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [gameMessage, setGameMessage] = useState<string>("");
-  const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
-  const [winner, setWinner] = useState<string | null>(null);
-  const [players, setPlayers] = useState<string[]>([]);
   const [hasError, setHasError] = useState<boolean>(false);
-  const [shouldUnmount, setShouldUnmount] = useState<boolean>(false);
-
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   console.log('Game component mounted with gameId:', gameId, 'userName:', userName);
-  console.log('Initial game status:', gameStatus);
-  console.log('Socket connected:', isConnected);
-  console.log('Socket object:', socket);
+  console.log('Current game from Pusher:', currentGame);
 
-  // Early return if we should unmount due to error
-  if (shouldUnmount) {
-    console.log('Game component: should unmount, returning early');
-    return null;
-  }
-
-  // Track game status changes
+  // Join game channel when component mounts
   useEffect(() => {
-    console.log('Game status changed to:', gameStatus);
-  }, [gameStatus]);
+    if (isConnected && gameId) {
+      joinGame(gameId, userName);
+    }
+  }, [isConnected, gameId, userName, joinGame]);
+
+  // Update local state when game data changes
+  useEffect(() => {
+    if (currentGame && currentGame.id === gameId) {
+      // Convert flat board array to 2D array
+      const newBoard: BoardState = [
+        [currentGame.board[0], currentGame.board[1], currentGame.board[2]],
+        [currentGame.board[3], currentGame.board[4], currentGame.board[5]],
+        [currentGame.board[6], currentGame.board[7], currentGame.board[8]]
+      ];
+      setBoard(newBoard);
+
+      // Update game message based on status
+      if (currentGame.status === 'finished') {
+        if (currentGame.winner) {
+          setGameMessage(`${currentGame.winner} Wins!`);
+        } else {
+          setGameMessage("It's a draw!");
+        }
+      } else if (currentGame.status === 'playing') {
+        const currentPlayerName = currentGame.currentPlayer === 'X' 
+          ? currentGame.players[0] 
+          : currentGame.players[1];
+        setGameMessage(`${currentPlayerName}'s turn`);
+      } else {
+        setGameMessage('Waiting for players...');
+      }
+    }
+  }, [currentGame, gameId]);
 
   // Memoized computed values
   const isGameEnded = useMemo(() => 
-    gameStatus === 'finished' || winner !== null, 
-    [gameStatus, winner]
+    currentGame?.status === 'finished', 
+    [currentGame?.status]
   );
 
   const isMyTurn = useMemo(() => {
-    const playerIndex = players.indexOf(userName);
-    return playerIndex === 0 ? currentPlayer === 'X' : currentPlayer === 'O';
-  }, [currentPlayer, players, userName]);
+    if (!currentGame || currentGame.status !== 'playing') return false;
+    const playerIndex = currentGame.players.indexOf(userName);
+    return playerIndex === 0 ? currentGame.currentPlayer === 'X' : currentGame.currentPlayer === 'O';
+  }, [currentGame, userName]);
 
   // Get current player name
   const getCurrentPlayerName = useMemo(() => {
-    if (players.length === 0) return 'Unknown';
-    const playerIndex = currentPlayer === 'X' ? 0 : 1;
-    return players[playerIndex] || 'Unknown';
-  }, [currentPlayer, players]);
+    if (!currentGame || !currentGame.currentPlayer) return 'Unknown';
+    const playerIndex = currentGame.currentPlayer === 'X' ? 0 : 1;
+    return currentGame.players[playerIndex] || 'Unknown';
+  }, [currentGame]);
 
   // Get my player symbol
   const getMyPlayerSymbol = useMemo(() => {
-    const playerIndex = players.indexOf(userName);
+    if (!currentGame) return null;
+    const playerIndex = currentGame.players.indexOf(userName);
     return playerIndex === 0 ? 'X' : 'O';
-  }, [players, userName]);
+  }, [currentGame, userName]);
 
-  const resetGame = useCallback(() => {
-    if (socket) {
-      // Reset local state
-      setBoard(INITIAL_BOARD);
-      setGameMessage("");
-      setWinner(null);
-      setGameStatus('playing');
-      
-      // Request server to reset the game
-      socket.emit('reset game', gameId);
-    }
-  }, [socket, gameId]);
-
-  const handleLeaveGame = useCallback(() => {
-    if (socket) {
+  const handleLeaveGame = useCallback(async () => {
+    try {
+      setIsLoading(true);
       console.log('Game component: leaving game');
-      socket.emit('leave game', gameId, userName);
+      leaveGame();
       onBackToLobby();
+    } catch (error) {
+      console.error('Error leaving game:', error);
+      setHasError(true);
+    } finally {
+      setIsLoading(false);
     }
-  }, [socket, gameId, userName, onBackToLobby]);
+  }, [leaveGame, onBackToLobby]);
 
-  const gameCompletionCheck = useCallback((currentBoard: BoardState, player: string) => {
-    if (!socket) return;
-
-    // Check rows, columns, and diagonals
-    for (let i = 0; i < 3; i++) {
-      // Check rows
-      if (currentBoard[i].every((cell) => cell === player)) {
-        setWinner(player);
-        setGameStatus('finished');
-        setGameMessage(`${player} Wins!`);
-        // Emit game finished event to server
-        socket.emit('game finished', gameId, player);
-        return;
-      }
-      // Check columns
-      if (currentBoard.every((row) => row[i] === player)) {
-        setWinner(player);
-        setGameStatus('finished');
-        setGameMessage(`${player} Wins!`);
-        // Emit game finished event to server
-        socket.emit('game finished', gameId, player);
-        return;
-      }
-    }
-
-    // Check diagonals
-    if (currentBoard[0][0] === player && 
-        currentBoard[1][1] === player && 
-        currentBoard[2][2] === player) {
-      setWinner(player);
-      setGameStatus('finished');
-      setGameMessage(`${player} Wins!`);
-      // Emit game finished event to server
-      socket.emit('game finished', gameId, player);
+  const handleCellClick = useCallback(async (y: number, x: number) => {
+    if (!isConnected || isGameEnded || board[y][x] !== null || !isMyTurn || currentGame?.status !== 'playing') {
       return;
     }
 
-    if (currentBoard[0][2] === player && 
-        currentBoard[1][1] === player && 
-        currentBoard[2][0] === player) {
-      setWinner(player);
-      setGameStatus('finished');
-      setGameMessage(`${player} Wins!`);
-      // Emit game finished event to server
-      socket.emit('game finished', gameId, player);
-      return;
+    try {
+      setIsLoading(true);
+      const index = y * 3 + x;
+      const playerSymbol = getMyPlayerSymbol;
+
+      if (!playerSymbol) {
+        console.error('Player symbol not found');
+        return;
+      }
+
+      const response = await fetch('/api/game/move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameId: gameId,
+          index: index,
+          player: playerSymbol,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to make move');
+      }
+
+      console.log('Move made successfully:', data);
+    } catch (error: any) {
+      console.error('Error making move:', error);
+      setHasError(true);
+      alert(error.message || 'Failed to make move. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
+  }, [isConnected, board, isGameEnded, isMyTurn, currentGame?.status, getMyPlayerSymbol, gameId]);
 
-    // Check for draw
-    if (currentBoard.every((row) => row.every((cell) => cell !== null))) {
-      setGameStatus('finished');
-      setGameMessage('It\'s a draw!');
-      // Emit game finished event to server with no winner
-      socket.emit('game finished', gameId, null);
-    }
-  }, [socket, gameId]);
+  // Handle errors
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg text-center max-w-md">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-white mb-4">Game Error</h2>
+          <p className="text-purple-200 mb-6">Something went wrong with the game. Please try again.</p>
+          <button
+            onClick={onBackToLobby}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-400 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-500 transition-all duration-300"
+          >
+            Back to Lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const handleCellClick = useCallback((y: number, x: number) => {
-    if (!socket || isGameEnded || board[y][x] !== null || !isMyTurn || gameStatus !== 'playing') return;
-
-    const newBoard = board.map(row => [...row]);
-    newBoard[y][x] = currentPlayer;
-    
-    setBoard(newBoard);
-    
-    // Emit move to server
-    socket.emit('make move', gameId, y * 3 + x, currentPlayer);
-    
-    // Check for game completion
-    gameCompletionCheck(newBoard, currentPlayer);
-  }, [socket, board, currentPlayer, isGameEnded, isMyTurn, gameStatus, gameId, gameCompletionCheck]);
-
-  useEffect(() => {
-    console.log('Game component useEffect: socket available:', !!socket);
-    if (!socket || hasError || shouldUnmount) return;
-
-    // Request current game data when component mounts
-    console.log('Game component: requesting current game data for gameId:', gameId);
-    socket.emit('get game', gameId);
-    console.log('Game component: get game request sent');
-    
-    // Add a timeout to handle cases where game data is not received
-    const timeoutId = setTimeout(() => {
-      console.log('Game component: timeout waiting for game data, checking if game still exists');
-      if (gameStatus === 'waiting' && !hasError) {
-        console.log('Game component: still waiting after timeout, requesting game data again');
-        socket.emit('get game', gameId);
-      }
-    }, 5000); // 5 second timeout
-
-    const handleMoveMade = (moveGameId: string, index: number, player: string, nextPlayer: string, gameWinner: string | null, status: string) => {
-      if (moveGameId === gameId) {
-        const y = Math.floor(index / 3);
-        const x = index % 3;
-        
-        setBoard(prev => {
-          const newBoard = prev.map(row => [...row]);
-          newBoard[y][x] = player;
-          return newBoard;
-        });
-        
-        setCurrentPlayer(nextPlayer);
-        setGameStatus(status as 'waiting' | 'playing' | 'finished');
-        setWinner(gameWinner);
-        
-        if (gameWinner) {
-          setGameMessage(`${gameWinner} Wins!`);
-        } else if (status === 'finished') {
-          setGameMessage('It\'s a draw!');
-        }
-      }
-    };
-
-    const handleGameStarted = (startedGameId: string) => {
-      console.log('Game component: game started event received for game:', startedGameId);
-      console.log('Current gameId:', gameId);
-      console.log('Event matches current game:', startedGameId === gameId);
-      if (startedGameId === gameId) {
-        console.log('Game component: updating game status to playing');
-        setGameStatus('playing');
-        setGameMessage('Game started!');
-        console.log('Game status updated to playing');
-      }
-    };
-
-    const handleGameUpdated = (updatedGame: any) => {
-      console.log('Game component: game updated event received:', updatedGame);
-      if (updatedGame.id === gameId) {
-        console.log('Game component: updating game with new data:', updatedGame);
-        setPlayers(updatedGame.players);
-        setGameStatus(updatedGame.status);
-      }
-    };
-
-    const handleGameData = (gameData: any) => {
-      console.log('Game component: received game data:', gameData);
-      console.log('Current gameId:', gameId);
-      console.log('Data matches current game:', gameData && gameData.id === gameId);
-      if (gameData && gameData.id === gameId) {
-        console.log('Game component: updating with received game data');
-        console.log('Setting players:', gameData.players || []);
-        console.log('Setting game status:', gameData.status || 'waiting');
-        console.log('Setting current player:', gameData.currentPlayer || 'X');
-        setPlayers(gameData.players || []);
-        setGameStatus(gameData.status || 'waiting');
-        setCurrentPlayer(gameData.currentPlayer || 'X');
-        if (gameData.board) {
-          // Convert 1D board to 2D
-          const board2D = [];
-          for (let i = 0; i < 3; i++) {
-            board2D.push(gameData.board.slice(i * 3, (i + 1) * 3));
-          }
-          setBoard(board2D);
-          console.log('Board updated to:', board2D);
-        }
-        console.log('Game data update completed');
-      }
-    };
-
-    const handleGameReset = (resetGameId: string) => {
-      console.log('Game component: game reset event received for game:', resetGameId);
-      if (resetGameId === gameId) {
-        console.log('Game component: resetting game state');
-        setBoard(INITIAL_BOARD);
-        setGameMessage('');
-        setWinner(null);
-        setGameStatus('playing');
-        // Request fresh game data to get the new currentPlayer
-        socket.emit('get game', gameId);
-      }
-    };
-
-    const handlePlayerLeftGame = (leftGameId: string, leftPlayerName: string, updatedGame: any) => {
-      console.log('Game component: player left game event received:', leftPlayerName, 'from game:', leftGameId);
-      if (leftGameId === gameId) {
-        console.log('Game component: updating game after player left');
-        setPlayers(updatedGame.players);
-        setGameStatus(updatedGame.status);
-        
-        // Properly convert 1D board to 2D if it exists
-        if (updatedGame.board && Array.isArray(updatedGame.board)) {
-          const board2D = [];
-          for (let i = 0; i < 3; i++) {
-            board2D.push(updatedGame.board.slice(i * 3, (i + 1) * 3));
-          }
-          setBoard(board2D);
-        } else {
-          // Reset to initial board if no board data
-          setBoard(INITIAL_BOARD);
-        }
-        
-        setCurrentPlayer(updatedGame.currentPlayer || 'X');
-        setWinner(null);
-        
-        // Handle null or undefined player name
-        const playerName = leftPlayerName || 'A player';
-        setGameMessage(`${playerName} left the game. Waiting for a new player...`);
-        
-        // Request fresh game data to ensure synchronization
-        socket.emit('get game', gameId);
-      }
-    };
-
-    const handleGameRemoved = (removedGameId: string) => {
-      console.log('Game component: game removed event received for game:', removedGameId);
-      if (removedGameId === gameId) {
-        console.log('Game component: current game was removed, returning to lobby');
-        setGameMessage('Game was removed. Returning to lobby...');
-        // Return to lobby after a brief delay to show the message
-        setTimeout(() => {
-          onBackToLobby();
-        }, 2000);
-      }
-    };
-
-    // Handle socket errors
-    const handleSocketError = (error: { message: string }) => {
-      console.error('Game component: socket error:', error);
-      if (error.message === 'Game not found' && !hasError) {
-        console.log('Game component: game not found, returning to lobby immediately');
-        setHasError(true);
-        setShouldUnmount(true);
-        setGameMessage('Game not found. Returning to lobby...');
-        // Return to lobby immediately without delay to prevent reconnection loop
-        onBackToLobby();
-        return; // Exit early to prevent further processing
-      }
-    };
-
-    socket.on('move made', handleMoveMade);
-    socket.on('game started', handleGameStarted);
-    socket.on('game updated', handleGameUpdated);
-    socket.on('game data', handleGameData);
-    socket.on('game reset', handleGameReset);
-    socket.on('player left game', handlePlayerLeftGame);
-    socket.on('game removed', handleGameRemoved);
-    socket.on('error', handleSocketError);
-
-    return () => {
-      clearTimeout(timeoutId);
-      socket.off('move made', handleMoveMade);
-      socket.off('game started', handleGameStarted);
-      socket.off('game updated', handleGameUpdated);
-      socket.off('game data', handleGameData);
-      socket.off('game reset', handleGameReset);
-      socket.off('player left game', handlePlayerLeftGame);
-      socket.off('game removed', handleGameRemoved);
-      socket.off('error', handleSocketError);
-    };
-  }, [socket, gameId, userName, onBackToLobby, handleLeaveGame, hasError, shouldUnmount]);
+  // Show loading state
+  if (!currentGame || !isConnected) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-white mb-2">Loading Game...</h2>
+          <p className="text-purple-200">Connecting to game server</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-2xl max-w-2xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-400 rounded-3xl flex items-center justify-center shadow-xl">
-              <span className="text-3xl">🎮</span>
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent">
-                Tic-Tac-Toe
-              </h1>
-              <p className="text-purple-200 text-lg">Game #{gameId}</p>
-            </div>
-          </div>
+          <h1 className="text-4xl font-bold text-white mb-4">
+            Tic-Tac-Toe Game
+          </h1>
+          <p className="text-xl text-purple-200 mb-4">
+            Game: <span className="text-yellow-300 font-semibold">{currentGame.name}</span>
+          </p>
           
           {/* Game Status */}
-          <div className="space-y-4">
-            {/* Player List */}
-            {players.length > 0 && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-                <h3 className="text-lg font-semibold text-white text-center mb-3">👥 Players</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {players.map((player, index) => (
-                    <div 
-                      key={player} 
-                      className={`text-center p-3 rounded-xl border-2 transition-all duration-300 ${
-                        currentPlayer === (index === 0 ? 'X' : 'O') && gameStatus === 'playing'
-                          ? 'border-green-400 bg-green-500/20 shadow-lg shadow-green-500/25'
-                          : 'border-white/20 bg-white/5'
-                      }`}
-                    >
-                      <div className="text-sm text-purple-300 mb-1">
-                        {player === userName ? 'You' : 'Opponent'}
-                      </div>
-                      <div className="font-bold text-white">{player}</div>
-                      <div className="text-2xl mt-1">
-                        {index === 0 ? '❌' : '⭕'}
-                      </div>
-                      <div className="text-xs text-purple-300">
-                        {index === 0 ? 'Player X' : 'Player O'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
+            <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </div>
+        </div>
 
-            {/* Turn Indicator */}
-            {gameStatus === 'playing' && (
-              <div className="bg-gradient-to-r from-purple-600/20 to-pink-400/20 rounded-2xl p-6 border border-white/20 shadow-lg">
-                <div className="text-center space-y-3">
-                  <div className="flex items-center justify-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full ${isMyTurn ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`}></div>
-                    <h3 className="text-2xl font-bold text-white">
-                      {isMyTurn ? '🎯 Your Turn!' : '⏳ Waiting for Opponent'}
-                    </h3>
-                    <div className={`w-4 h-4 rounded-full ${isMyTurn ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`}></div>
-                  </div>
-                  
-                  <div className="text-lg text-purple-200">
-                    Current Player: <span className="font-bold text-white">{getCurrentPlayerName}</span>
-                    <span className="mx-2 text-2xl">
-                      {currentPlayer === 'X' ? '❌' : '⭕'}
-                    </span>
-                  </div>
-                  
-                  <div className="text-sm text-purple-300">
-                    You are playing as: <span className="font-semibold text-green-300">{getMyPlayerSymbol}</span>
-                  </div>
+        {/* Game Info */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
+            <h3 className="text-lg font-semibold text-white mb-2">Players</h3>
+            <div className="space-y-2">
+              {currentGame.players.map((player, index) => (
+                <div key={player} className="flex items-center justify-center space-x-2">
+                  <span className="text-purple-300">{index === 0 ? 'X' : 'O'}:</span>
+                  <span className="text-white font-medium">{player}</span>
+                  {player === userName && (
+                    <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded-full">You</span>
+                  )}
                 </div>
-              </div>
-            )}
-            
-            {/* Game Status Messages */}
-            <div className="text-center space-y-2">
-              {gameStatus === 'waiting' && (
-                <div data-testid="waiting-message" className="text-white text-xl font-semibold bg-yellow-500/20 px-4 py-2 rounded-xl border border-yellow-400/30">
-                  ⏳ Waiting for players to join...
-                </div>
-              )}
-              
-              {gameStatus === 'playing' && (
-                <div data-testid="turn-indicator" className="text-white text-xl font-semibold">
-                  {isMyTurn ? 'Your turn' : 'Waiting for opponent'}
-                </div>
-              )}
-              
-              {gameStatus === 'finished' && (
-                <div data-testid="game-over" className="text-white text-xl font-semibold bg-purple-500/20 px-4 py-2 rounded-xl border border-purple-400/30">
-                  {winner ? `🏆 ${winner} Wins!` : '🤝 It\'s a Draw!'}
-                </div>
-              )}
-              
-              {gameMessage && gameStatus !== 'playing' && (
-                <div className="text-purple-300 text-lg">{gameMessage}</div>
-              )}
+              ))}
             </div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
+            <h3 className="text-lg font-semibold text-white mb-2">Current Turn</h3>
+            <p className="text-2xl font-bold text-purple-300">{getCurrentPlayerName}</p>
+            {isMyTurn && currentGame.status === 'playing' && (
+              <p className="text-sm text-green-400 mt-1">Your turn!</p>
+            )}
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
+            <h3 className="text-lg font-semibold text-white mb-2">Game Status</h3>
+            <p className="text-2xl font-bold text-purple-300 capitalize">{currentGame.status}</p>
+            {gameMessage && (
+              <p className="text-sm text-purple-200 mt-1">{gameMessage}</p>
+            )}
           </div>
         </div>
 
         {/* Game Board */}
-        <div className="flex justify-center mb-8">
-          <div data-testid="game-board" className="grid grid-cols-3 gap-4 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg max-w-md mx-auto mb-8">
+          <div className="grid grid-cols-3 gap-2">
             {board.map((row, y) =>
               row.map((cell, x) => (
                 <button
                   key={`${y}-${x}`}
-                  data-testid={`cell-${y * 3 + x}`}
                   onClick={() => handleCellClick(y, x)}
-                  disabled={cell !== null || !isMyTurn || gameStatus !== 'playing'}
-                  className={`w-20 h-20 border-2 rounded-xl text-3xl font-bold transition-all duration-300 relative overflow-hidden ${
-                    cell !== null
-                      ? 'bg-white/20 border-white/30 cursor-default'
-                      : isMyTurn && gameStatus === 'playing'
-                      ? 'bg-white/10 border-green-400/50 hover:bg-green-500/20 hover:border-green-400 hover:scale-105 cursor-pointer'
-                      : 'bg-white/5 border-white/20 opacity-50 cursor-not-allowed'
-                  } ${
-                    cell === 'X' 
-                      ? 'text-blue-400 shadow-lg shadow-blue-500/25' 
-                      : cell === 'O' 
-                      ? 'text-red-400 shadow-lg shadow-red-500/25'
-                      : ''
-                  }`}
+                  disabled={isLoading || cell !== null || !isMyTurn || isGameEnded || currentGame.status !== 'playing'}
+                  className="w-20 h-20 bg-white/10 border border-white/20 rounded-xl text-3xl font-bold text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center"
                 >
                   {cell}
                 </button>
@@ -475,40 +251,14 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         </div>
 
         {/* Game Controls */}
-        <div className="flex justify-center space-x-4">
+        <div className="text-center space-x-4">
           <button
-            data-testid="leave-game"
             onClick={handleLeaveGame}
-            className="bg-red-500/20 backdrop-blur-sm text-red-300 font-medium py-3 px-6 rounded-xl border border-red-400/30 transition-all duration-300 hover:bg-red-500/30 hover:scale-105 cursor-pointer"
+            disabled={isLoading}
+            className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-500 text-white rounded-xl font-medium hover:from-red-700 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
           >
-            🚪 Leave Game
+            {isLoading ? 'Leaving...' : 'Leave Game'}
           </button>
-          
-
-          
-          {gameStatus === 'finished' && (
-            <button
-              data-testid="new-game"
-              onClick={resetGame}
-              className="bg-gradient-to-r from-purple-600 to-pink-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:from-purple-700 hover:to-pink-500 transform hover:scale-105 shadow-lg cursor-pointer"
-            >
-              New Game
-            </button>
-          )}
-        </div>
-
-        {/* Connection Status */}
-        <div className="text-center mt-6">
-          <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${
-            isConnected 
-              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
-              : 'bg-red-500/20 text-red-300 border border-red-400/30'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-            <span className="font-medium">
-              {isConnected ? 'Connected to server' : 'Disconnected from server'}
-            </span>
-          </div>
         </div>
       </div>
     </div>

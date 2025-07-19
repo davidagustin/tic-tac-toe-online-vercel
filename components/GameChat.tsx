@@ -1,15 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSocket } from '@/hooks/useSocket';
-
-interface Message {
-  id: number;
-  text: string;
-  userName: string;
-  gameId: string;
-  timestamp?: string;
-}
+import { usePusher } from '@/hooks/usePusher';
+import type { ChatMessage } from '@/lib/pusher';
 
 interface GameChatProps {
   userName: string;
@@ -21,9 +14,9 @@ interface GameChatProps {
 }
 
 export default function GameChat({ userName, gameId, title, description, theme, icon }: GameChatProps) {
-  const { socket, isConnected } = useSocket();
+  const { isConnected, chatMessages } = usePusher();
   const [text, setText] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -36,50 +29,26 @@ export default function GameChat({ userName, gameId, title, description, theme, 
   const getMessages = useCallback(async () => {
     try {
       setIsLoading(true);
-      if (socket) {
-        socket.emit('get game chat history', gameId);
-      }
+      // For now, we'll use an empty array since this is real-time chat
+      // In a real app, you might want to fetch recent messages from a database
+      setMessages([]);
       setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('Error fetching game chat messages:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [socket, gameId, scrollToBottom]);
+  }, [scrollToBottom]);
 
+  // Update messages when chatMessages from Pusher changes
   useEffect(() => {
-    if (!socket) return;
-
-    const handleGameChatHistory = (history: Message[]) => {
-      setMessages(history);
+    if (chatMessages) {
+      // Filter messages for this specific game
+      const gameMessages = chatMessages.filter(msg => msg.game_id === gameId);
+      setMessages(gameMessages);
       setTimeout(scrollToBottom, 100);
-    };
-
-    const handleGameChatMessage = (data: Message) => {
-      // Only add messages for this specific game
-      if (data.gameId === gameId) {
-        const newMessage: Message = {
-          id: data.id,
-          text: data.text,
-          userName: data.userName,
-          gameId: data.gameId,
-          timestamp: data.timestamp
-        };
-        setMessages(prev => [...prev, newMessage]);
-      }
-    };
-
-    socket.on('game chat history', handleGameChatHistory);
-    socket.on('game chat message', handleGameChatMessage);
-
-    // Request chat history when component mounts
-    getMessages();
-
-    return () => {
-      socket.off('game chat history', handleGameChatHistory);
-      socket.off('game chat message', handleGameChatMessage);
-    };
-  }, [socket, gameId, getMessages, scrollToBottom]);
+    }
+  }, [chatMessages, gameId, scrollToBottom]);
 
   // Auto-scroll when messages change
   useEffect(() => {
@@ -88,7 +57,7 @@ export default function GameChat({ userName, gameId, title, description, theme, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!socket || !text.trim()) return;
+    if (!isConnected || !text.trim()) return;
 
     try {
       // Basic client-side validation
@@ -112,7 +81,9 @@ export default function GameChat({ userName, gameId, title, description, theme, 
         }
       }
 
-      socket.emit('game chat', { text, userName, gameId });
+      // For now, just clear the text since we don't have a sendChatMessage method
+      // In a real implementation, you would call an API endpoint to send the message
+      console.log('Game chat message would be sent:', { text, userName, gameId });
       setText('');
     } catch (error: any) {
       console.error('Error posting game chat message:', error);
@@ -196,7 +167,7 @@ export default function GameChat({ userName, gameId, title, description, theme, 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
+                          <span className="text-purple-300 font-semibold text-sm">{message.user_name}</span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
                         </div>

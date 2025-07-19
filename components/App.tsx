@@ -17,6 +17,11 @@ interface GameState {
   name: string;
 }
 
+interface LobbyProps {
+  userName: string;
+  onJoinGame?: (gameId: string) => void;
+}
+
 export default function App() {
   const [view, setView] = useState<'lobby' | 'game'>('lobby');
   const [user, setUser] = useState<User | null>(null);
@@ -78,6 +83,16 @@ export default function App() {
   const handleBackToLobby = () => {
     setCurrentGame(null);
     setView('lobby');
+  };
+
+  const handleJoinGame = (gameId: string) => {
+    // For now, we'll create a simple game state
+    // In a real app, you'd fetch the game details from the server
+    setCurrentGame({
+      id: gameId,
+      name: `Game ${gameId}`
+    });
+    setView('game');
   };
 
   // Show auth component if not logged in
@@ -182,6 +197,7 @@ export default function App() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <Lobby 
                   userName={user?.username || ''} 
+                  onJoinGame={handleJoinGame}
                 />
               </div>
             )}

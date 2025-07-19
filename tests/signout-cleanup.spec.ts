@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 
-test('Sign out cleanup test', async ({ page }) => {
-  // Navigate to the app
-  await page.goto('http://localhost:3000');
+test('Sign out cleanup test - Production', async ({ page }) => {
+  // Navigate to the production app
+  await page.goto('https://tic-tac-toe-online-vercel.vercel.app');
   
   // Wait for the login form to be visible
   await page.waitForSelector('text=Welcome Back', { timeout: 10000 });
   
-  // Fill in the login form with demo user
-  await page.fill('input[placeholder="Enter your username..."]', 'demo');
-  await page.fill('input[placeholder="Enter your password..."]', 'demo123');
+  // Fill in the login form with demo user (using correct placeholders)
+  await page.fill('input[placeholder="Enter your username"]', 'demo');
+  await page.fill('input[placeholder="Enter your password"]', 'demo123');
   
   // Click the sign in button
   await page.click('button:has-text("Sign In")');
@@ -45,8 +45,8 @@ test('Sign out cleanup test', async ({ page }) => {
   await expect(page.locator('text=Welcome Back')).toBeVisible();
   
   // Login with a different user to check if the game was cleaned up
-  await page.fill('input[placeholder="Enter your username..."]', 'test');
-  await page.fill('input[placeholder="Enter your password..."]', 'test123');
+  await page.fill('input[placeholder="Enter your username"]', 'test');
+  await page.fill('input[placeholder="Enter your password"]', 'test123');
   
   // Click the sign in button
   await page.click('button:has-text("Sign In")');
@@ -62,5 +62,5 @@ test('Sign out cleanup test', async ({ page }) => {
   const gameElement = page.locator('text=Test Game for Cleanup');
   await expect(gameElement).not.toBeVisible({ timeout: 5000 });
   
-  console.log('Sign out cleanup test passed - game was properly removed');
+  console.log('Production sign out cleanup test passed - game was properly removed');
 }); 

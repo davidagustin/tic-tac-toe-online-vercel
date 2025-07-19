@@ -11,7 +11,7 @@ const SECURITY_CONFIG = {
   MAX_GAME_NAME_LENGTH: 100,
   RATE_LIMIT_WINDOW: 60000, // 1 minute
   RATE_LIMIT_MAX_REQUESTS: 100,
-  SOCKET_RATE_LIMIT_MAX: 50,
+  PUSHER_RATE_LIMIT_MAX: 50,
   ALLOWED_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?@#$%^&*()+=:;"'<>[\]{}|\\/~`]+$/,
   ALLOWED_USERNAME_CHARACTERS: /^[a-zA-Z0-9\s\-_]+$/,
   ALLOWED_GAME_NAME_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?()]+$/,
@@ -204,9 +204,9 @@ export class RequestValidator {
   }
 }
 
-// Socket.IO security middleware
-export class SocketSecurity {
-  static validateSocketData(data: any, type: 'chat' | 'game' | 'move'): any {
+// Pusher security middleware
+export class PusherSecurity {
+  static validatePusherData(data: any, type: 'chat' | 'game' | 'move'): any {
     try {
       switch (type) {
         case 'chat':
@@ -248,18 +248,18 @@ export class SocketSecurity {
 
       return data;
     } catch (error) {
-      throw new Error(`Socket data validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Pusher data validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  static validateSocketConnection(socket: any): boolean {
-    // Validate socket connection
-    if (!socket || !socket.id) {
+  static validatePusherConnection(channel: any): boolean {
+    // Validate Pusher channel connection
+    if (!channel || !channel.name) {
       return false;
     }
 
-    // Check if socket ID is valid format
-    if (!/^[a-zA-Z0-9_-]+$/.test(socket.id)) {
+    // Check if channel name is valid format
+    if (!/^[a-zA-Z0-9_-]+$/.test(channel.name)) {
       return false;
     }
 

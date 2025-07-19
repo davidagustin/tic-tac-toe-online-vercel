@@ -1,6 +1,6 @@
 # Tic-Tac-Toe Online - Next.js Version
 
-A real-time multiplayer Tic-Tac-Toe game built with Next.js, Socket.IO, and MySQL.
+A real-time multiplayer Tic-Tac-Toe game built with Next.js, Pusher, and PostgreSQL.
 
 ## Features
 
@@ -8,7 +8,7 @@ A real-time multiplayer Tic-Tac-Toe game built with Next.js, Socket.IO, and MySQ
 - Live chat rooms for both lobby and game
 - Modern UI with Tailwind CSS
 - TypeScript support
-- Socket.IO for real-time communication
+- Pusher for real-time communication
 
 ## Prerequisites
 
@@ -87,18 +87,18 @@ A real-time multiplayer Tic-Tac-Toe game built with Next.js, Socket.IO, and MySQ
 │   ├── GameChatRoom.tsx # In-game chat
 │   └── Lobby.tsx        # Lobby component
 ├── hooks/               # Custom React hooks
-│   └── useSocket.ts     # Socket.IO hook
+│   └── usePusher.ts     # Pusher hook
 ├── lib/                 # Utility libraries
 │   └── db.ts           # Database configuration
 ├── db/                  # Database files
 │   └── setup.sql       # Database schema
-└── server.js           # Custom server with Socket.IO
+└── lib/pusher.ts       # Pusher configuration
 ```
 
 ## Technologies Used
 
 - **Next.js 15** - React framework
-- **Socket.IO** - Real-time communication
+- **Pusher** - Real-time communication
 - **PostgreSQL** - Database (via Vercel Postgres)
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Styling

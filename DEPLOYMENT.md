@@ -1,114 +1,100 @@
 # Deployment Guide
 
-This guide explains how to deploy the Tic-Tac-Toe game application.
+This guide will help you deploy the Tic-Tac-Toe application to production.
 
 ## Architecture
 
-The application consists of two parts:
+The application consists of:
 1. **Next.js Frontend** - Deployed on Vercel
-2. **Socket.IO Server** - Deployed separately (Railway, Render, or similar)
+2. **Pusher** - Real-time communication service
+3. **PostgreSQL Database** - Deployed on Vercel Postgres
 
-## Step 1: Deploy Socket.IO Server
+## Step 1: Set up Pusher
 
-### Option A: Deploy on Railway
+1. Go to [https://pusher.com/](https://pusher.com/)
+2. Create a free account
+3. Create a new Channels app
+4. Get your credentials:
+   - App ID
+   - Key
+   - Secret
+   - Cluster (usually "us3")
 
-1. Create a new project on [Railway](https://railway.app/)
-2. Connect your GitHub repository
-3. Create a new service and select "Deploy from GitHub repo"
-4. Set the following environment variables:
-   ```
-   NODE_ENV=production
-   FRONTEND_URL=https://your-vercel-app.vercel.app
-   ```
-5. Set the root directory to `/` (or wherever you place the socket-server.js file)
-6. Deploy the service
+## Step 2: Set up Vercel Postgres
 
-### Option B: Deploy on Render
+1. Go to your Vercel dashboard
+2. Create a new Postgres database
+3. Copy the connection string
 
-1. Create a new Web Service on [Render](https://render.com/)
-2. Connect your GitHub repository
-3. Set the build command: `npm install`
-4. Set the start command: `node socket-server.js`
-5. Set environment variables:
-   ```
-   NODE_ENV=production
-   FRONTEND_URL=https://your-vercel-app.vercel.app
-   ```
+## Step 3: Deploy to Vercel
 
-### Option C: Deploy on Heroku
+### Environment Variables
 
-1. Create a new app on [Heroku](https://heroku.com/)
-2. Connect your GitHub repository
-3. Set environment variables in the Heroku dashboard
-4. Deploy the app
+Set these environment variables in your Vercel project:
 
-## Step 2: Deploy Next.js App on Vercel
+```env
+# Database
+DATABASE_URL="your_vercel_postgres_connection_string"
+PGHOST_UNPOOLED="your_postgres_host"
+
+# Pusher
+PUSHER_APP_ID="your_pusher_app_id"
+NEXT_PUBLIC_PUSHER_KEY="your_pusher_key"
+PUSHER_SECRET="your_pusher_secret"
+NEXT_PUBLIC_PUSHER_CLUSTER="us3"
+
+# Next.js
+NEXTAUTH_SECRET="your_nextauth_secret"
+NEXTAUTH_URL="https://your-domain.vercel.app"
+```
+
+### Deploy Steps
 
 1. Push your code to GitHub
-2. Connect your repository to [Vercel](https://vercel.com/)
-3. Set the following environment variables in Vercel:
+2. Connect your repository to Vercel
+3. Add the environment variables above
+4. Deploy!
+
+## Step 4: Database Setup
+
+1. Run the database migrations:
+   ```sql
+   -- This will be done automatically by Vercel Postgres
+   -- The schema is in db/setup.sql
    ```
-   NEXT_PUBLIC_SOCKET_URL=https://your-socket-server-url.com
-   ```
-4. Deploy the app
-
-## Environment Variables
-
-### For Socket.IO Server
-- `NODE_ENV`: Set to `production`
-- `FRONTEND_URL`: The URL of your deployed Next.js app
-- `PORT`: The port to run the server on (usually set by the hosting platform)
-
-### For Next.js App
-- `NEXT_PUBLIC_SOCKET_URL`: The URL of your deployed Socket.IO server
-
-## Local Development
-
-1. Start the Socket.IO server:
-   ```bash
-   node socket-server.js
-   ```
-
-2. Start the Next.js development server:
-   ```bash
-   npm run dev
-   ```
-
-3. Create a `.env.local` file with:
-   ```
-   NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
-   ```
-
-## Testing the Deployment
-
-1. Open your deployed Next.js app
-2. Create a game
-3. Open the app in another browser/incognito window
-4. Join the game
-5. Verify that real-time communication works
 
 ## Troubleshooting
 
-### Socket.IO Connection Issues
-- Check that the `NEXT_PUBLIC_SOCKET_URL` environment variable is set correctly
-- Verify that the Socket.IO server is running and accessible
-- Check CORS settings on the Socket.IO server
+### Connection Issues
+- Verify that all environment variables are set correctly
+- Check that your Pusher app is active
+- Ensure your database connection string is correct
 
-### Game Not Working
-- Check browser console for errors
-- Verify that both servers are running
-- Check that the Socket.IO server URL is correct
+### Real-time Issues
+- Check that Pusher credentials are correct
+- Verify that the cluster matches your Pusher app
+- Check browser console for connection errors
 
-## Security Notes
+### Database Issues
+- Verify the DATABASE_URL is correct
+- Check that the database is accessible
+- Ensure the schema has been applied
 
-- The Socket.IO server includes rate limiting and input validation
-- All user inputs are sanitized
-- Security events are logged
+## Security Considerations
+
+- All API routes include rate limiting and input validation
+- Pusher provides built-in authentication and authorization
+- Database connections use connection pooling
 - CORS is configured for production
 
-## Performance
+## Monitoring
 
-- The Socket.IO server uses in-memory storage for games
-- Games are automatically cleaned up when players leave
-- Rate limiting prevents abuse
-- Connection pooling is used for database connections (when configured) 
+- Vercel provides built-in analytics and monitoring
+- Pusher dashboard shows connection metrics
+- Database performance can be monitored in Vercel dashboard
+
+## Scaling
+
+- Vercel automatically scales based on traffic
+- Pusher handles thousands of concurrent connections
+- Database connections are pooled for efficiency 

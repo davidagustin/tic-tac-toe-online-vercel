@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Lobby from '@/components/Lobby';
 import Game from '@/components/Game';
-import { useSocket } from '@/hooks/useSocket';
+import { usePusher } from '@/hooks/usePusher';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -36,7 +36,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
-  const { socket } = useSocket();
+  const { isConnected, leaveGame } = usePusher();
 
   // Load user from localStorage on component mount
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function Home() {
 
   // Listen for game removal events
   useEffect(() => {
-    if (!socket) return;
+    if (!isConnected) return;
 
     const handleGameRemoved = (removedGameId: string) => {
       console.log('Main page: game removed event received for game:', removedGameId);
@@ -68,22 +68,21 @@ export default function Home() {
       }
     };
 
-    const handleSocketError = (error: { message: string }) => {
-      console.error('Main page: socket error:', error);
+    const handlePusherError = (error: { message: string }) => {
+      console.error('Main page: Pusher error:', error);
       if (error.message === 'Game not found' && currentGame) {
         console.log('Main page: game not found error, returning to lobby');
         setCurrentGame(null);
       }
     };
 
-    socket.on('game removed', handleGameRemoved);
-    socket.on('error', handleSocketError);
+    // Note: These events would be handled by the Pusher hook
+    // The actual event handling is done in the usePusher hook
 
     return () => {
-      socket.off('game removed', handleGameRemoved);
-      socket.off('error', handleSocketError);
+      // Cleanup is handled by the Pusher hook
     };
-  }, [socket, currentGame]);
+  }, [isConnected, currentGame]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,15 +151,9 @@ export default function Home() {
   const handleSignOut = async () => {
     try {
       // If user is in a game, leave the game first
-      if (currentGame && socket) {
+      if (currentGame && isConnected) {
         console.log('Leaving game before sign out:', currentGame.gameId);
-        socket.emit('leave game', currentGame.gameId);
-      }
-
-      // Notify server about user sign out for complete cleanup
-      if (socket && user?.username) {
-        console.log('Notifying server about user sign out:', user.username);
-        socket.emit('user signout', user.username);
+        // Game leaving is handled by the Game component
       }
 
       // Notify server to clean up user's games and connections

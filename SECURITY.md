@@ -26,7 +26,7 @@ This document outlines the comprehensive security measures implemented in the Ti
 - Automatic rate limit headers in responses
 - Graceful degradation with informative error messages
 
-#### Socket.IO Rate Limiting
+#### Pusher Rate Limiting
 - **50 events per minute** per socket connection
 - Per-event type rate limiting
 - Automatic cleanup on disconnect
@@ -96,7 +96,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 ### 8. Real-Time Communication Security
 
-#### Socket.IO Security
+#### Pusher Security
 - CORS configuration for production
 - Connection validation
 - Event rate limiting

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSocket } from '@/hooks/useSocket';
+import { usePusher } from '@/hooks/usePusher';
 import GameManager from './GameManager';
 import ChatRoom from './ChatRoom';
 
@@ -18,52 +18,21 @@ interface UserStats {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { socket, isConnected } = useSocket();
+  const { isConnected, playerStats, subscribeToUser } = usePusher();
   const [view, setView] = useState<'games' | 'chat'>('games');
-  const [userStats, setUserStats] = useState<UserStats>({
+
+  // Subscribe to user stats when component mounts
+  useEffect(() => {
+    subscribeToUser(userName);
+  }, [subscribeToUser, userName]);
+
+  // Use playerStats from Pusher hook
+  const userStats = playerStats || {
     wins: 0,
     losses: 0,
     draws: 0,
     total_games: 0
-  });
-
-  const refreshUserStats = useCallback(() => {
-    if (socket) {
-      console.log('Refreshing user statistics for:', userName);
-      socket.emit('get user statistics', userName);
-    }
-  }, [socket, userName]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    // Request user statistics when component mounts
-    refreshUserStats();
-
-    const handleUserStatistics = (stats: UserStats) => {
-      console.log('Received user statistics:', stats);
-      setUserStats(stats);
-    };
-
-    socket.on('user statistics', handleUserStatistics);
-
-    return () => {
-      socket.off('user statistics', handleUserStatistics);
-    };
-  }, [socket, userName, refreshUserStats]);
-
-  // Note: Removed automatic signout cleanup to prevent race conditions when joining games
-  // Signout is now handled explicitly in the main page component when user actually signs out
-
-  // Refresh stats when returning to lobby (e.g., after a game)
-  useEffect(() => {
-    // Refresh stats every 30 seconds to keep them updated
-    const interval = setInterval(() => {
-      refreshUserStats();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [refreshUserStats]);
+  };
 
   const handleJoinGame = (gameId: string) => {
     console.log('Joining game:', gameId);
