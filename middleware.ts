@@ -202,6 +202,7 @@ export function middleware(request: NextRequest) {
     '/api/stats',
     '/api/clear-auth',
     '/api/test-pusher',
+    '/api/debug-env',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)
