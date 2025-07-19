@@ -30,6 +30,14 @@ export function usePusher() {
       
       console.log('Pusher client state:', pusherClient.connection.state);
       
+      // Check if already connected
+      if (pusherClient.connection.state === 'connected') {
+        console.log('Pusher already connected');
+        setIsConnected(true);
+        setLastError(null);
+        setIsInitializing(false);
+      }
+      
       // Subscribe to lobby channel
       lobbyChannel.current = pusherClient.subscribe(CHANNELS.LOBBY);
       
@@ -43,6 +51,7 @@ export function usePusher() {
         setIsConnected(true);
         setLastError(null);
         setIsInitializing(false);
+        setIsUsingFallback(false); // Clear fallback status when connected
       });
 
       pusherClient.connection.bind('disconnected', () => {
@@ -83,7 +92,7 @@ export function usePusher() {
           loadGamesFromAPI();
           startPolling();
         }
-      }, 5000);
+      }, 3000); // Reduced timeout
 
       // Clean up timeout when connected
       pusherClient.connection.bind('connected', () => {
@@ -307,12 +316,12 @@ export function usePusher() {
     
     const timeout = setTimeout(() => {
       console.log('Checking connection status after timeout...', { isConnected, isInitializing });
-      if (!isConnected) {
+      if (!isConnected && !isUsingFallback) {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
         pollInterval = startPolling();
       }
-    }, 3000); // Reduced timeout for faster fallback
+    }, 4000); // Slightly longer timeout to allow connection to establish
 
     return () => {
       clearTimeout(timeout);
@@ -321,7 +330,7 @@ export function usePusher() {
       }
       disconnect();
     };
-  }, [connect, disconnect, isConnected, isInitializing]);
+  }, [connect, disconnect, isConnected, isInitializing, isUsingFallback]);
 
   return {
     isConnected,
