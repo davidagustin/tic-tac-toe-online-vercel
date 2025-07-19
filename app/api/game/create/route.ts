@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
+import { pusherServer } from '@/lib/pusher';
+
+// Define constants locally to avoid import issues
+const CHANNELS = {
+  LOBBY: 'lobby',
+};
+
+const EVENTS = {
+  GAME_CREATED: 'game-created',
+};
 
 // In-memory storage for games (in production, you'd use a database)
 const games = new Map();
