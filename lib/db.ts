@@ -44,7 +44,7 @@ export async function query(sql: string, params?: any[]) {
   }
 }
 
-// Initialize database with the required table
+// Initialize database with the required tables
 export async function initializeDatabase() {
   if (!pool) {
     console.warn('Database not configured. Skipping initialization.');
@@ -52,12 +52,24 @@ export async function initializeDatabase() {
   }
   
   try {
+    // Create chat room text table
     await query(`
       CREATE TABLE IF NOT EXISTS chatRoomText (
         id SERIAL PRIMARY KEY,
         text VARCHAR(120) NOT NULL
       );
     `);
+
+    // Create users table for authentication
+    await query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);

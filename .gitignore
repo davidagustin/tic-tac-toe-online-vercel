@@ -111,3 +111,6 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+*storybook.log
+storybook-static

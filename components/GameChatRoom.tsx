@@ -1,18 +1,20 @@
 'use client';
 
 import React from 'react';
-import ChatRoom from './ChatRoom';
+import GameChat from './GameChat';
 
 interface GameChatRoomProps {
   userName: string;
+  gameId: string;
 }
 
-export default function GameChatRoom({ userName }: GameChatRoomProps) {
+export default function GameChatRoom({ userName, gameId }: GameChatRoomProps) {
   return (
-    <ChatRoom
+    <GameChat
       userName={userName}
+      gameId={gameId}
       title="Game Chat"
-      description="Chat with players during the game"
+      description="Private chat with your opponent"
       theme="green"
       icon="💬"
     />

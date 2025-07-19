@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,13 +12,19 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#3b82f6",
+};
+
 export const metadata: Metadata = {
   title: "Tic-Tac-Toe Online - Multiplayer Game",
   description: "Play Tic-Tac-Toe online with friends in real-time. Features live chat, multiplayer gameplay, and modern UI.",
   keywords: ["tic-tac-toe", "multiplayer", "online game", "real-time", "chat"],
   authors: [{ name: "Tic-Tac-Toe Online" }],
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  themeColor: "#3b82f6",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
@@ -45,8 +51,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        <meta name="theme-color" content="#3b82f6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Tic-Tac-Toe Online" />
