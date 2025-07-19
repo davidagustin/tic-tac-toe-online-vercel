@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { pusherClient, CHANNELS, EVENTS, type Game, type Player, type ChatMessage, type PlayerStats } from '@/lib/pusher';
+import { initializePusherClient, getPusherClient, CHANNELS, EVENTS, type Game, type Player, type ChatMessage, type PlayerStats } from '@/lib/pusher';
 import type { Channel } from 'pusher-js';
 
 export function usePusher() {
@@ -11,15 +11,22 @@ export function usePusher() {
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   
   const lobbyChannel = useRef<Channel | null>(null);
   const gameChannel = useRef<Channel | null>(null);
   const userChannel = useRef<Channel | null>(null);
+  const pusherClientRef = useRef<any>(null);
 
   // Connect to Pusher
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     try {
       console.log('Attempting to connect to Pusher...');
+      
+      // Initialize Pusher client
+      const pusherClient = await initializePusherClient();
+      pusherClientRef.current = pusherClient;
+      
       console.log('Pusher client state:', pusherClient.connection.state);
       
       // Subscribe to lobby channel
@@ -34,6 +41,7 @@ export function usePusher() {
         console.log('Pusher connected successfully');
         setIsConnected(true);
         setLastError(null);
+        setIsInitializing(false);
       });
 
       pusherClient.connection.bind('disconnected', () => {
@@ -50,6 +58,7 @@ export function usePusher() {
         });
         setLastError(error.message || 'Connection error');
         setIsConnected(false);
+        setIsInitializing(false);
       });
 
       // Lobby event handlers
@@ -82,12 +91,16 @@ export function usePusher() {
     } catch (error) {
       console.error('Error connecting to Pusher:', error);
       setLastError(error instanceof Error ? error.message : 'Connection failed');
+      setIsInitializing(false);
     }
   }, [currentGame]);
 
   // Disconnect from Pusher
   const disconnect = useCallback(() => {
     try {
+      const pusherClient = pusherClientRef.current;
+      if (!pusherClient) return;
+
       if (lobbyChannel.current) {
         pusherClient.unsubscribe(CHANNELS.LOBBY);
         lobbyChannel.current = null;
@@ -110,6 +123,12 @@ export function usePusher() {
   // Join a game channel
   const joinGame = useCallback((gameId: string, userName: string) => {
     try {
+      const pusherClient = pusherClientRef.current;
+      if (!pusherClient) {
+        console.error('Pusher client not initialized');
+        return;
+      }
+
       // Unsubscribe from previous game channel
       if (gameChannel.current) {
         pusherClient.unsubscribe(CHANNELS.GAME(currentGame?.id || ''));
@@ -120,45 +139,47 @@ export function usePusher() {
       gameChannel.current = pusherClient.subscribe(CHANNELS.GAME(gameId));
 
       // Game-specific event handlers
-      gameChannel.current.bind(EVENTS.GAME_UPDATED, (data: { game: Game }) => {
-        console.log('Game updated in channel:', data.game);
-        setCurrentGame(data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-      });
+      if (gameChannel.current) {
+        gameChannel.current.bind(EVENTS.GAME_UPDATED, (data: { game: Game }) => {
+          console.log('Game updated in channel:', data.game);
+          setCurrentGame(data.game);
+          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        });
 
-      gameChannel.current.bind(EVENTS.PLAYER_JOINED, (data: { player: string, game: Game }) => {
-        console.log('Player joined:', data.player);
-        setCurrentGame(data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-      });
+        gameChannel.current.bind(EVENTS.PLAYER_JOINED, (data: { player: string, game: Game }) => {
+          console.log('Player joined:', data.player);
+          setCurrentGame(data.game);
+          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        });
 
-      gameChannel.current.bind(EVENTS.PLAYER_LEFT, (data: { player: string, game: Game }) => {
-        console.log('Player left:', data.player);
-        setCurrentGame(data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-      });
+        gameChannel.current.bind(EVENTS.PLAYER_LEFT, (data: { player: string, game: Game }) => {
+          console.log('Player left:', data.player);
+          setCurrentGame(data.game);
+          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        });
 
-      gameChannel.current.bind(EVENTS.PLAYER_MOVED, (data: { game: Game }) => {
-        console.log('Player moved:', data.game);
-        setCurrentGame(data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-      });
+        gameChannel.current.bind(EVENTS.PLAYER_MOVED, (data: { game: Game }) => {
+          console.log('Player moved:', data.game);
+          setCurrentGame(data.game);
+          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        });
 
-      gameChannel.current.bind(EVENTS.GAME_ENDED, (data: { game: Game, winner: string | null }) => {
-        console.log('Game ended:', data.game, 'Winner:', data.winner);
-        setCurrentGame(data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-      });
+        gameChannel.current.bind(EVENTS.GAME_ENDED, (data: { game: Game, winner: string | null }) => {
+          console.log('Game ended:', data.game, 'Winner:', data.winner);
+          setCurrentGame(data.game);
+          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        });
 
-      gameChannel.current.bind(EVENTS.CHAT_MESSAGE, (data: { message: ChatMessage }) => {
-        console.log('Chat message received:', data.message);
-        setChatMessages(prev => [...prev, data.message]);
-      });
+        gameChannel.current.bind(EVENTS.CHAT_MESSAGE, (data: { message: ChatMessage }) => {
+          console.log('Chat message received:', data.message);
+          setChatMessages(prev => [...prev, data.message]);
+        });
 
-      gameChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
-        console.log('Stats updated:', data.stats);
-        setPlayerStats(data.stats);
-      });
+        gameChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
+          console.log('Stats updated:', data.stats);
+          setPlayerStats(data.stats);
+        });
+      }
 
     } catch (error) {
       console.error('Error joining game channel:', error);
@@ -169,6 +190,9 @@ export function usePusher() {
   // Leave game channel
   const leaveGame = useCallback(() => {
     try {
+      const pusherClient = pusherClientRef.current;
+      if (!pusherClient) return;
+
       if (gameChannel.current) {
         pusherClient.unsubscribe(CHANNELS.GAME(currentGame?.id || ''));
         gameChannel.current = null;
@@ -183,6 +207,12 @@ export function usePusher() {
   // Subscribe to user-specific channel for stats
   const subscribeToUser = useCallback((userName: string) => {
     try {
+      const pusherClient = pusherClientRef.current;
+      if (!pusherClient) {
+        console.error('Pusher client not initialized');
+        return;
+      }
+
       if (userChannel.current) {
         pusherClient.unsubscribe(CHANNELS.USER(userName));
         userChannel.current = null;
@@ -190,10 +220,12 @@ export function usePusher() {
 
       userChannel.current = pusherClient.subscribe(CHANNELS.USER(userName));
 
-      userChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
-        console.log('User stats updated:', data.stats);
-        setPlayerStats(data.stats);
-      });
+      if (userChannel.current) {
+        userChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
+          console.log('User stats updated:', data.stats);
+          setPlayerStats(data.stats);
+        });
+      }
 
     } catch (error) {
       console.error('Error subscribing to user channel:', error);
@@ -219,20 +251,21 @@ export function usePusher() {
 
     // Try to load games after a delay if not connected
     const timeout = setTimeout(() => {
-      if (!isConnected) {
+      if (!isConnected && !isInitializing) {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       clearTimeout(timeout);
       disconnect();
     };
-  }, [connect, disconnect, isConnected]);
+  }, [connect, disconnect, isConnected, isInitializing]);
 
   return {
     isConnected,
+    isInitializing,
     lastError,
     games,
     currentGame,
@@ -254,6 +287,9 @@ export function useGameChannel(gameId: string) {
   useEffect(() => {
     if (!isConnected || !gameId) return;
 
+    const pusherClient = getPusherClient();
+    if (!pusherClient) return;
+
     const gameChannel = pusherClient.subscribe(CHANNELS.GAME(gameId));
     setChannel(gameChannel);
 
@@ -273,6 +309,9 @@ export function useUserChannel(userId: string) {
 
   useEffect(() => {
     if (!isConnected || !userId) return;
+
+    const pusherClient = getPusherClient();
+    if (!pusherClient) return;
 
     const userChannel = pusherClient.subscribe(CHANNELS.USER(userId));
     setChannel(userChannel);

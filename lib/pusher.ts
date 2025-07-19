@@ -16,11 +16,46 @@ export const pusherServer = new PusherServer({
   useTLS: true,
 });
 
-// Client-side Pusher instance
-export const pusherClient = new PusherClient(PUSHER_KEY, {
-  cluster: PUSHER_CLUSTER,
-  forceTLS: true,
-});
+// Client-side Pusher instance - will be initialized with config from server
+let pusherClient: PusherClient | null = null;
+
+// Function to initialize Pusher client with config from server
+export async function initializePusherClient(): Promise<PusherClient> {
+  if (pusherClient) {
+    return pusherClient;
+  }
+
+  try {
+    // Fetch config from server
+    const response = await fetch('/api/pusher-config');
+    const config = await response.json();
+    
+    if (!config.key || !config.cluster) {
+      throw new Error('Pusher configuration not available');
+    }
+
+    pusherClient = new PusherClient(config.key, {
+      cluster: config.cluster,
+      forceTLS: true,
+    });
+
+    console.log('Pusher client initialized with config from server:', {
+      key: config.key ? 'Set' : 'Not set',
+      cluster: config.cluster,
+      keyLength: config.key?.length || 0,
+    });
+
+    return pusherClient;
+  } catch (error) {
+    console.error('Failed to initialize Pusher client:', error);
+    throw error;
+  }
+}
+
+// Get Pusher client (for backward compatibility)
+export function getPusherClient(): PusherClient | null {
+  return pusherClient;
+}
 
 // Debug Pusher configuration
 if (typeof window !== 'undefined') {
