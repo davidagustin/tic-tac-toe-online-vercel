@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SecurityValidator, RateLimiter, RequestValidator, SecurityLogger, CSP_HEADERS } from '@/lib/security';
-
-// In-memory user store (in production, use a database)
-const users = new Map<string, { username: string; password: string; createdAt: Date }>();
+import { AuthService } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   let username: string | undefined;
@@ -40,19 +38,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    if (users.has(validatedUsername)) {
+    const userExists = await AuthService.userExists(validatedUsername);
+    if (userExists) {
       SecurityLogger.logSecurityEvent('REGISTER_FAILED', { username: validatedUsername, reason: 'User already exists' }, 'low');
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
 
     // Create new user
-    const newUser = {
-      username: validatedUsername,
-      password: password, // In production, hash the password
-      createdAt: new Date()
-    };
-
-    users.set(validatedUsername, newUser);
+    const newUser = await AuthService.createUser(validatedUsername, password);
 
     // Log successful registration
     SecurityLogger.logSecurityEvent('REGISTER_SUCCESS', { username: validatedUsername }, 'low');
@@ -61,9 +54,9 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: {
-        id: Date.now(),
+        id: newUser.id,
         username: validatedUsername,
-        createdAt: newUser.createdAt.toISOString()
+        createdAt: newUser.created_at.toISOString()
       }
     });
     

@@ -29,11 +29,8 @@ test('Hydration test - check for client-side rendering issues', async ({ page })
   // Test form submission
   await submitButton.click();
   
-  // Wait for either success message or lobby to appear
-  await Promise.race([
-    page.waitForSelector('text=Successfully signed in!', { timeout: 10000 }),
-    page.waitForSelector('text=Welcome, demo!', { timeout: 10000 })
-  ]);
+  // Wait for the lobby to load
+  await page.waitForSelector('text=Welcome, demo!', { timeout: 10000 });
   
   // If we get to the lobby, check that it's properly rendered
   const lobbyContent = page.locator('text=Welcome, demo!');

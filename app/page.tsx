@@ -33,29 +33,6 @@ export default function Home() {
   const [success, setSuccess] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
-  // Check for existing user session on component mount
-  useEffect(() => {
-    const checkAuth = () => {
-      try {
-        const savedUser = localStorage.getItem('ticTacToeUser');
-        if (savedUser) {
-          const userData = JSON.parse(savedUser);
-          setUser(userData);
-          setShowLobby(true);
-        }
-      } catch (error) {
-        console.error('Error parsing saved user:', error);
-        localStorage.removeItem('ticTacToeUser');
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-
-    // Use requestAnimationFrame to ensure this runs after the initial render
-    requestAnimationFrame(checkAuth);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,15 +55,17 @@ export default function Home() {
       if (response.ok) {
         setUser(data.user);
         
-        // Store user data in localStorage
-        localStorage.setItem('ticTacToeUser', JSON.stringify(data.user));
-        
         // Clear form
         setUsername('');
         setPassword('');
         
-        // Immediately show lobby for better UX
-        setShowLobby(true);
+        // Show success message
+        setSuccess(isLogin ? 'Successfully signed in!' : 'Account created successfully!');
+        
+        // Show lobby after a brief delay for better UX
+        setTimeout(() => {
+          setShowLobby(true);
+        }, 1000);
       } else {
         setError(data.error || 'An error occurred');
       }
@@ -107,23 +86,9 @@ export default function Home() {
   const handleSignOut = () => {
     setUser(null);
     setShowLobby(false);
-    localStorage.removeItem('ticTacToeUser');
+    setSuccess('');
+    setError('');
   };
-
-  // Show loading state while checking authentication
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 animate-fadeIn">
-        <div className="text-center animate-scaleIn">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full mb-4 animate-pulse">
-            <span className="text-2xl">🎮</span>
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Loading...</h2>
-          <p className="text-purple-200">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
 
   // If user is authenticated and lobby should be shown, display the lobby
   if (user && showLobby) {
@@ -281,28 +246,22 @@ export default function Home() {
               type="button"
               onClick={handleToggleMode}
               disabled={isLoading}
-              className="w-full bg-white bg-opacity-10 backdrop-blur-sm text-white font-medium py-4 px-6 rounded-2xl border border-white border-opacity-20 transition-all duration-300 hover:bg-opacity-20 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-white bg-opacity-10 backdrop-blur-sm text-white font-medium py-3 px-6 rounded-2xl border border-white border-opacity-20 transition-all duration-300 hover:bg-white hover:bg-opacity-20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+              {isLogin ? 'Create New Account' : 'Already have an account? Sign In'}
             </button>
-          </form>
 
-          <div className="mt-8 pt-6 border-t border-white border-opacity-20">
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <span className="text-green-400 text-lg">✅</span>
-                <span className="text-purple-200">Real-time multiplayer gaming</span>
+            {/* Demo Credentials */}
+            {isLogin && (
+              <div className="mt-6 p-4 bg-white bg-opacity-5 rounded-2xl border border-white border-opacity-10">
+                <h3 className="text-sm font-medium text-purple-200 mb-2">Demo Credentials:</h3>
+                <div className="space-y-1 text-xs text-purple-300">
+                  <div>Username: <span className="text-white">demo</span> | Password: <span className="text-white">demo123</span></div>
+                  <div>Username: <span className="text-white">test</span> | Password: <span className="text-white">test123</span></div>
+                </div>
               </div>
-              <div className="flex items-center space-x-3">
-                <span className="text-green-400 text-lg">✅</span>
-                <span className="text-purple-200">Live chat with other players</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <span className="text-green-400 text-lg">✅</span>
-                <span className="text-purple-200">Free to play, no registration fees</span>
-              </div>
-            </div>
-          </div>
+            )}
+          </form>
         </div>
       </div>
     </div>

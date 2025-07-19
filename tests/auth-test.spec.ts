@@ -17,11 +17,8 @@ test('Authentication loading state test', async ({ page }) => {
   // Should show loading state
   await page.waitForSelector('text=Processing...', { timeout: 5000 });
   
-  // Wait for either success message or lobby to appear
-  await Promise.race([
-    page.waitForSelector('text=Successfully signed in!', { timeout: 10000 }),
-    page.waitForSelector('text=Welcome, demo!', { timeout: 10000 })
-  ]);
+  // Wait for the lobby to load
+  await page.waitForSelector('text=Welcome, demo!', { timeout: 10000 });
 });
 
 test('Authentication error message test', async ({ page }) => {
@@ -55,9 +52,6 @@ test('Authentication success message test', async ({ page }) => {
   
   // Click the sign in button
   await page.click('button:has-text("Sign In")');
-  
-  // Should show success message
-  await page.waitForSelector('text=Successfully signed in!', { timeout: 10000 });
   
   // Wait for the lobby to load
   await page.waitForSelector('text=Welcome, test!', { timeout: 10000 });

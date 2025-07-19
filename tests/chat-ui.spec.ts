@@ -14,12 +14,6 @@ test('Chat UI elements test', async ({ page }) => {
   // Click the sign in button
   await page.click('button:has-text("Sign In")');
   
-  // Wait for either success message or lobby to appear
-  await Promise.race([
-    page.waitForSelector('text=Successfully signed in!', { timeout: 5000 }),
-    page.waitForSelector('text=Welcome, demo!', { timeout: 5000 })
-  ]);
-  
   // Wait for the lobby to load
   await page.waitForSelector('text=Welcome, demo!', { timeout: 10000 });
   

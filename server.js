@@ -4,6 +4,16 @@ const next = require('next');
 const { Server } = require('socket.io');
 const crypto = require('crypto');
 
+// Import database functions for chat persistence
+const { 
+  initializeDatabase, 
+  saveLobbyMessage, 
+  getLobbyMessages, 
+  saveGameMessage, 
+  getGameMessages,
+  cleanupOldMessages 
+} = require('./lib/db');
+
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = process.env.PORT || 3000;
@@ -11,50 +21,26 @@ const port = process.env.PORT || 3000;
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-// In-memory storage for games and chat
+// In-memory storage for games (chat is now persistent in database)
 const games = new Map();
 const gameCreators = new Map(); // Track which user created which game
-const chatMessages = []; // Global lobby chat
-const gameChats = new Map(); // Game-specific chat rooms
 const players = new Map(); // socketId -> { userName, gameId }
 const socketRateLimits = new Map(); // socketId -> { count, resetTime }
 const MAX_CHAT_MESSAGES = 100;
 const MAX_GAME_CHAT_MESSAGES = 50;
-const MESSAGE_RETENTION_HOURS = 24; // Keep messages for 24 hours
 
-// Add some sample messages for testing
-chatMessages.push(
-  {
-    id: Date.now() - 300000, // 5 minutes ago
-    text: "Welcome to the Tic-Tac-Toe Game Lobby! 🎮",
-    userName: "System",
-    timestamp: new Date(Date.now() - 300000).toISOString()
-  },
-  {
-    id: Date.now() - 180000, // 3 minutes ago
-    text: "Feel free to chat while waiting for games! 💬",
-    userName: "System",
-    timestamp: new Date(Date.now() - 180000).toISOString()
-  }
-);
-
-// Clean up old messages periodically
-function cleanupOldMessages() {
-  const cutoffTime = Date.now() - (MESSAGE_RETENTION_HOURS * 60 * 60 * 1000);
-  const initialLength = chatMessages.length;
-  
-  // Remove messages older than retention period
-  while (chatMessages.length > 0 && chatMessages[0].id < cutoffTime) {
-    chatMessages.shift();
-  }
-  
-  if (initialLength !== chatMessages.length) {
-    console.log(`Cleaned up ${initialLength - chatMessages.length} old messages`);
+// Clean up old messages periodically using database
+async function performCleanup() {
+  try {
+    await cleanupOldMessages();
+    console.log('Database cleanup completed');
+  } catch (error) {
+    console.error('Error during database cleanup:', error);
   }
 }
 
 // Run cleanup every hour
-setInterval(cleanupOldMessages, 60 * 60 * 1000);
+setInterval(performCleanup, 60 * 60 * 1000);
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -197,7 +183,14 @@ function validateSocketConnection(socket) {
   return true;
 }
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
+  // Initialize database
+  try {
+    await initializeDatabase();
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+  }
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
@@ -331,11 +324,16 @@ app.prepare().then(() => {
       }
     });
 
-    // Send chat history to new users
-    socket.emit('chat history', chatMessages);
+    // Send chat history to new users (async)
+    getLobbyMessages(MAX_CHAT_MESSAGES).then(messages => {
+      socket.emit('chat history', messages);
+    }).catch(error => {
+      console.error('Error loading chat history:', error);
+      socket.emit('chat history', []);
+    });
 
     // Handle chat event with security
-    socket.on('chat room', function(data) {
+    socket.on('chat room', async function(data) {
       try {
         // Rate limiting
         if (!checkSocketRateLimit(socket.id)) {
@@ -357,23 +355,22 @@ app.prepare().then(() => {
           data.userName = validateUsername(data.userName);
         }
 
-        // Create message object with timestamp
-        const message = {
-          id: Date.now(),
-          text: data.text,
-          userName: data.userName || 'Anonymous',
-          timestamp: new Date().toISOString()
-        };
-
-        // Store message in chat history
-        chatMessages.push(message);
+        // Save message to database
+        const savedMessage = await saveLobbyMessage(data.text, data.userName || 'Anonymous');
         
-        // Keep only the last MAX_CHAT_MESSAGES
-        if (chatMessages.length > MAX_CHAT_MESSAGES) {
-          chatMessages.shift();
+        if (!savedMessage) {
+          throw new Error('Failed to save message to database');
         }
 
-        console.log('this is data', data);
+        // Create message object with database ID and timestamp
+        const message = {
+          id: savedMessage.id,
+          text: data.text,
+          userName: data.userName || 'Anonymous',
+          timestamp: savedMessage.timestamp
+        };
+
+        console.log('Lobby chat message saved:', message);
         io.sockets.emit('new message', message);
       } catch (error) {
         logSecurityEvent('INVALID_CHAT_DATA', { socketId: socket.id, error: error.message }, 'low');
@@ -382,7 +379,7 @@ app.prepare().then(() => {
     });
 
     // Handle game chat event with security
-    socket.on('game chat', function(data) {
+    socket.on('game chat', async function(data) {
       try {
         // Rate limiting
         if (!checkSocketRateLimit(socket.id)) {
@@ -416,30 +413,23 @@ app.prepare().then(() => {
         const validatedText = validateMessage(data.text);
         const validatedUserName = validateUsername(data.userName);
 
-        // Create message object with timestamp
+        // Save message to database
+        const savedMessage = await saveGameMessage(data.gameId, validatedText, validatedUserName);
+        
+        if (!savedMessage) {
+          throw new Error('Failed to save game message to database');
+        }
+
+        // Create message object with database ID and timestamp
         const message = {
-          id: Date.now(),
+          id: savedMessage.id,
           text: validatedText,
           userName: validatedUserName,
           gameId: data.gameId,
-          timestamp: new Date().toISOString()
+          timestamp: savedMessage.timestamp
         };
 
-        // Initialize game chat if it doesn't exist
-        if (!gameChats.has(data.gameId)) {
-          gameChats.set(data.gameId, []);
-        }
-
-        // Store message in game chat history
-        const gameChat = gameChats.get(data.gameId);
-        gameChat.push(message);
-        
-        // Keep only the last MAX_GAME_CHAT_MESSAGES
-        if (gameChat.length > MAX_GAME_CHAT_MESSAGES) {
-          gameChat.shift();
-        }
-
-        console.log('Game chat message:', message);
+        console.log('Game chat message saved:', message);
         
         // Broadcast to all players in the game
         io.sockets.emit('game chat message', message);
@@ -451,7 +441,7 @@ app.prepare().then(() => {
     });
 
     // Handle request for game chat history
-    socket.on('get game chat history', function(gameId) {
+    socket.on('get game chat history', async function(gameId) {
       try {
         // Validate game exists
         const game = games.get(gameId);
@@ -460,13 +450,14 @@ app.prepare().then(() => {
           return;
         }
 
-        // Get game chat history
-        const gameChat = gameChats.get(gameId) || [];
+        // Get game chat history from database
+        const gameChat = await getGameMessages(gameId, MAX_GAME_CHAT_MESSAGES);
         socket.emit('game chat history', gameChat);
 
       } catch (error) {
         logSecurityEvent('GAME_CHAT_HISTORY_ERROR', { socketId: socket.id, error: error.message }, 'low');
         socket.emit('error', { message: 'Failed to get game chat history' });
+        socket.emit('game chat history', []);
       }
     });
 

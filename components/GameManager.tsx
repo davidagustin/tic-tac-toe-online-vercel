@@ -23,7 +23,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'waiting' | 'playing' | 'finished'>('all');
+  const [filter, setFilter] = useState<'all' | 'waiting' | 'playing'>('all');
 
   useEffect(() => {
     if (!socket) return;
@@ -336,7 +336,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       <div className="flex justify-center relative z-10">
         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-lg">
           <div className="flex space-x-1">
-            {(['all', 'waiting', 'playing', 'finished'] as const).map((filterOption) => (
+            {(['all', 'waiting', 'playing'] as const).map((filterOption) => (
               <button
                 key={filterOption}
                 onClick={() => {

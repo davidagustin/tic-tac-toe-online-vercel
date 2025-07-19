@@ -1,21 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SecurityValidator, RateLimiter, RequestValidator, SecurityLogger, CSP_HEADERS } from '@/lib/security';
-
-// In-memory user store (in production, use a database)
-const users = new Map<string, { username: string; password: string; createdAt: Date }>();
-
-// Add some demo users for testing
-users.set('demo', {
-  username: 'demo',
-  password: 'demo123',
-  createdAt: new Date()
-});
-
-users.set('test', {
-  username: 'test',
-  password: 'test123',
-  createdAt: new Date()
-});
+import { AuthService } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   let username: string | undefined;
@@ -48,16 +33,17 @@ export async function POST(request: NextRequest) {
     const validatedUsername = SecurityValidator.validateUsername(username);
     const validatedPassword = password; // Password validation is handled by the client
 
-    // Check if user exists
-    const user = users.get(validatedUsername);
-    if (!user) {
-      SecurityLogger.logSecurityEvent('LOGIN_FAILED', { username: validatedUsername, reason: 'User not found' }, 'low');
+    // Check if user exists and validate credentials
+    const isValidCredentials = await AuthService.validateCredentials(validatedUsername, validatedPassword);
+    if (!isValidCredentials) {
+      SecurityLogger.logSecurityEvent('LOGIN_FAILED', { username: validatedUsername, reason: 'Invalid credentials' }, 'low');
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    // Check password (in production, use proper password hashing)
-    if (user.password !== validatedPassword) {
-      SecurityLogger.logSecurityEvent('LOGIN_FAILED', { username: validatedUsername, reason: 'Invalid password' }, 'low');
+    // Get user data
+    const user = await AuthService.getUser(validatedUsername);
+    if (!user) {
+      SecurityLogger.logSecurityEvent('LOGIN_FAILED', { username: validatedUsername, reason: 'User not found' }, 'low');
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
@@ -68,9 +54,9 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: {
-        id: Date.now(),
+        id: user.id,
         username: validatedUsername,
-        createdAt: user.createdAt.toISOString()
+        createdAt: user.created_at.toISOString()
       }
     });
     
