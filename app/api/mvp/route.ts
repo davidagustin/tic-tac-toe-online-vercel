@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
 
     // Validate request body
     const body = RequestValidator.validateJsonBody(await request.json());
-    messageText = body.body;
-    userName = body.userName;
+    messageText = typeof body.body === 'string' ? body.body : undefined;
+    userName = typeof body.userName === 'string' ? body.userName : undefined;
 
     // Check if required fields exist
     if (!messageText || !userName) {
