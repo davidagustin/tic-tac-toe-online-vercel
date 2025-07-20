@@ -211,14 +211,14 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   // Handle errors
   if (hasError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg text-center max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center mobile-padding">
+        <div className="card text-center max-w-md w-full">
           <div className="text-4xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-white mb-4">Game Error</h2>
-          <p className="text-purple-200 mb-6">Something went wrong with the game. Please try again.</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">Game Error</h2>
+          <p className="text-purple-200 mb-6 mobile-text">Something went wrong with the game. Please try again.</p>
           <button
             onClick={onBackToLobby}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-400 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-500 transition-all duration-300"
+            className="btn-primary w-full sm:w-auto"
           >
             Back to Lobby
           </button>
@@ -230,13 +230,12 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   // Show loading state only if game data is not available
   // Note: We don't require isConnected for the game to work, as the API can work without Pusher
   if (!currentGame) {
-
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg text-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center mobile-padding">
+        <div className="card text-center max-w-md w-full">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold text-white mb-2">Loading Game...</h2>
-          <p className="text-purple-200">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Loading Game...</h2>
+          <p className="text-purple-200 mobile-text mb-4">
             {showTimeoutMessage
               ? "Connection timeout. Please check your connection and try again."
               : "Connecting to game server"
@@ -244,19 +243,19 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           </p>
 
           {/* Connection status indicator */}
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-4 ${isConnected
+          <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-4 ${isConnected
             ? 'bg-green-500/20 text-green-300 border border-green-400/30'
             : 'bg-red-500/20 text-red-300 border border-red-400/30'
             }`}>
             <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'
               }`}></div>
-            {isConnected ? 'Connected to real-time' : 'Real-time disconnected (API still works)'}
+            <span className="text-xs">{isConnected ? 'Connected to real-time' : 'Real-time disconnected (API still works)'}</span>
           </div>
 
           {showTimeoutMessage && (
             <button
               onClick={onBackToLobby}
-              className="mt-4 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-400 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-500 transition-all duration-300"
+              className="btn-primary w-full sm:w-auto"
             >
               Back to Lobby
             </button>
@@ -267,68 +266,69 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 mobile-padding py-4 sm:py-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="mobile-heading font-bold text-white mb-2 sm:mb-4">
             Tic-Tac-Toe Game
           </h1>
-          <p className="text-xl text-purple-200 mb-4">
+          <p className="text-lg sm:text-xl text-purple-200 mb-2 sm:mb-4">
             Game: <span className="text-yellow-300 font-semibold">{currentGame.name}</span>
           </p>
 
           {/* Game Status */}
-          <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
+          <div className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
             <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
             {isConnected ? 'Connected' : 'Disconnected'}
           </div>
         </div>
 
-        {/* Game Info */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">Players</h3>
+        {/* Game Info - Mobile Responsive Grid */}
+        <div className="grid mobile-grid gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="card text-center">
+            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Players</h3>
             <div className="space-y-2">
               {currentGame.players.map((player, index) => (
-                <div key={player} className="flex items-center justify-center space-x-2">
+                <div key={player} className="flex items-center justify-center space-x-2 mobile-text">
                   <span className="text-purple-300">{index === 0 ? 'X' : 'O'}:</span>
-                  <span className="text-white font-medium">{player}</span>
+                  <span className="text-white font-medium truncate">{player}</span>
                   {player === userName && (
-                    <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded-full">You</span>
+                    <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded-full flex-shrink-0">You</span>
                   )}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">Current Turn</h3>
-            <p className="text-2xl font-bold text-purple-300">{getCurrentPlayerName}</p>
+          <div className="card text-center">
+            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Current Turn</h3>
+            <p className="text-xl sm:text-2xl font-bold text-purple-300 truncate">{getCurrentPlayerName}</p>
             {isMyTurn && currentGame.status === 'playing' && (
               <p className="text-sm text-green-400 mt-1">Your turn!</p>
             )}
           </div>
 
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">Game Status</h3>
-            <p className="text-2xl font-bold text-purple-300 capitalize">{currentGame.status}</p>
+          <div className="card text-center">
+            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Game Status</h3>
+            <p className="text-xl sm:text-2xl font-bold text-purple-300 capitalize">{currentGame.status}</p>
             {gameMessage && (
-              <p className="text-sm text-purple-200 mt-1">{gameMessage}</p>
+              <p className="text-sm text-purple-200 mt-1 truncate">{gameMessage}</p>
             )}
           </div>
         </div>
 
-        {/* Game Board */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg max-w-md mx-auto mb-8">
-          <div className="grid grid-cols-3 gap-2">
+        {/* Game Board - Mobile Optimized */}
+        <div className="card max-w-sm mx-auto mb-6 sm:mb-8 p-4 sm:p-6">
+          <div className="game-board no-select">
             {board.map((row, y) =>
               row.map((cell, x) => (
                 <button
                   key={`${y}-${x}`}
                   onClick={() => handleCellClick(y, x)}
                   disabled={isLoading || cell !== null || !isMyTurn || isGameEnded || currentGame.status !== 'playing'}
-                  className="w-20 h-20 bg-white/10 border border-white/20 rounded-xl text-3xl font-bold text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center"
+                  className="game-cell chrome-fix"
+                  aria-label={`Cell ${y + 1}-${x + 1}, ${cell || 'empty'}`}
                 >
                   {cell}
                 </button>
@@ -337,16 +337,33 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           </div>
         </div>
 
-        {/* Game Controls */}
-        <div className="text-center space-x-4">
+        {/* Game Controls - Mobile Responsive */}
+        <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-4">
           <button
             onClick={handleLeaveGame}
             disabled={isLoading}
-            className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-500 text-white rounded-xl font-medium hover:from-red-700 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+            className="btn-danger w-full sm:w-auto"
           >
             {isLoading ? 'Leaving...' : 'Leave Game'}
           </button>
+
+          {/* Back to Lobby button for mobile */}
+          <button
+            onClick={onBackToLobby}
+            className="btn-secondary w-full sm:w-auto"
+          >
+            Back to Lobby
+          </button>
         </div>
+
+        {/* Mobile-specific help text */}
+        {isMyTurn && currentGame.status === 'playing' && (
+          <div className="text-center">
+            <p className="text-purple-200 text-sm">
+              Tap a cell to make your move
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
