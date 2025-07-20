@@ -1,6 +1,49 @@
 import PusherServer from 'pusher';
 import PusherClient from 'pusher-js';
 
+// Environment detection
+const getEnvironment = () => {
+  // Check for custom environment variable first
+  if (process.env.APP_ENV) {
+    return process.env.APP_ENV;
+  }
+  return process.env.NODE_ENV || 'development';
+};
+
+// Get environment-specific Pusher configuration
+const getPusherConfig = () => {
+  const env = getEnvironment();
+  
+  // Environment-specific variable names
+  const config: Record<string, {
+    PUSHER_APP_ID: string | undefined;
+    PUSHER_KEY: string | undefined;
+    PUSHER_SECRET: string | undefined;
+    PUSHER_CLUSTER: string | undefined;
+  }> = {
+    development: {
+      PUSHER_APP_ID: process.env.PUSHER_APP_ID_DEV || process.env.PUSHER_APP_ID,
+      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_DEV || process.env.NEXT_PUBLIC_PUSHER_KEY,
+      PUSHER_SECRET: process.env.PUSHER_SECRET_DEV || process.env.PUSHER_SECRET,
+      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_DEV || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    },
+    staging: {
+      PUSHER_APP_ID: process.env.PUSHER_APP_ID_STAGING || process.env.PUSHER_APP_ID,
+      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_STAGING || process.env.NEXT_PUBLIC_PUSHER_KEY,
+      PUSHER_SECRET: process.env.PUSHER_SECRET_STAGING || process.env.PUSHER_SECRET,
+      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_STAGING || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    },
+    production: {
+      PUSHER_APP_ID: process.env.PUSHER_APP_ID_PROD || process.env.PUSHER_APP_ID,
+      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_PROD || process.env.NEXT_PUBLIC_PUSHER_KEY,
+      PUSHER_SECRET: process.env.PUSHER_SECRET_PROD || process.env.PUSHER_SECRET,
+      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_PROD || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    },
+  };
+
+  return config[env] || config.development;
+};
+
 // Environment validation (server-side only)
 const validateEnvironment = () => {
   // Only validate on server-side
@@ -13,12 +56,15 @@ const validateEnvironment = () => {
     };
   }
 
+  // Get environment-specific config
+  const pusherConfig = getPusherConfig();
+
   // Safe environment variable access
   const required = {
-    PUSHER_APP_ID: process.env.PUSHER_APP_ID || undefined,
-    PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY || undefined,
-    PUSHER_SECRET: process.env.PUSHER_SECRET || undefined,
-    PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || undefined,
+    PUSHER_APP_ID: pusherConfig.PUSHER_APP_ID || undefined,
+    PUSHER_KEY: pusherConfig.PUSHER_KEY || undefined,
+    PUSHER_SECRET: pusherConfig.PUSHER_SECRET || undefined,
+    PUSHER_CLUSTER: pusherConfig.PUSHER_CLUSTER || undefined,
   };
 
   // Always return the values, don't throw errors
@@ -40,29 +86,31 @@ const createPusherServer = () => {
   }
   
   const serverEnv = validateEnvironment();
+  const currentEnv = getEnvironment();
   
   // Validate required environment variables
   if (!serverEnv.PUSHER_APP_ID) {
-    console.error('PUSHER_APP_ID is not set');
+    console.error(`PUSHER_APP_ID is not set for ${currentEnv} environment`);
     return null;
   }
   
   if (!serverEnv.PUSHER_KEY) {
-    console.error('PUSHER_KEY is not set');
+    console.error(`PUSHER_KEY is not set for ${currentEnv} environment`);
     return null;
   }
   
   if (!serverEnv.PUSHER_SECRET) {
-    console.error('PUSHER_SECRET is not set');
+    console.error(`PUSHER_SECRET is not set for ${currentEnv} environment`);
     return null;
   }
   
   if (!serverEnv.PUSHER_CLUSTER) {
-    console.error('PUSHER_CLUSTER is not set');
+    console.error(`PUSHER_CLUSTER is not set for ${currentEnv} environment`);
     return null;
   }
   
-  console.log('Creating Pusher server with config:', {
+  console.log(`Creating Pusher server for ${currentEnv} environment with config:`, {
+    environment: currentEnv,
     appId: serverEnv.PUSHER_APP_ID ? 'Set' : 'Not set',
     key: serverEnv.PUSHER_KEY ? `${serverEnv.PUSHER_KEY.substring(0, 8)}...` : 'Not set',
     cluster: serverEnv.PUSHER_CLUSTER,
@@ -193,13 +241,34 @@ export function cleanupPusherClient(): void {
   }
 }
 
+// Export environment-specific configuration utility
+export const getEnvironmentSpecificConfig = () => {
+  const currentEnv = getEnvironment();
+  const pusherConfig = getPusherConfig();
+  
+  return {
+    environment: currentEnv,
+    pusher: {
+      appId: pusherConfig.PUSHER_APP_ID,
+      key: pusherConfig.PUSHER_KEY,
+      secret: pusherConfig.PUSHER_SECRET,
+      cluster: pusherConfig.PUSHER_CLUSTER,
+    },
+    isDevelopment: currentEnv === 'development',
+    isStaging: currentEnv === 'staging',
+    isProduction: currentEnv === 'production',
+  };
+};
+
 // Debug Pusher configuration (server-side only)
 if (typeof window === 'undefined') {
+  const config = getEnvironmentSpecificConfig();
   console.log('Server-side Pusher Config:', {
-    key: env.PUSHER_KEY ? 'Set' : 'Not set',
-    cluster: env.PUSHER_CLUSTER,
-    keyLength: env.PUSHER_KEY?.length || 0,
-    appId: env.PUSHER_APP_ID ? 'Set' : 'Not set',
+    environment: config.environment,
+    key: config.pusher.key ? 'Set' : 'Not set',
+    cluster: config.pusher.cluster,
+    keyLength: config.pusher.key?.length || 0,
+    appId: config.pusher.appId ? 'Set' : 'Not set',
   });
 }
 

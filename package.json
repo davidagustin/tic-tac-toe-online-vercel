@@ -16,7 +16,8 @@
     "chromatic:test": "npm run build-storybook && chromatic --project-token=YOUR_CHROMATIC_PROJECT_TOKEN --exit-zero-on-changes",
     "chromatic:ci": "npm run build-storybook && chromatic --project-token=$CHROMATIC_PROJECT_TOKEN --exit-zero-on-changes",
     "test:visual": "node scripts/visual-test.js",
-    "demo:visual": "node scripts/demo-visual-test.js"
+    "demo:visual": "node scripts/demo-visual-test.js",
+    "setup:pusher-env": "node scripts/setup-env-specific-pusher.js"
   },
   "dependencies": {
     "axios": "^1.6.2",
