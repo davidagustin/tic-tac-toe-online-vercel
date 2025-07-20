@@ -120,14 +120,7 @@ export default function RootLayout({
         {/* Prevent zoom on input focus (iOS) */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
-        {/* Preload critical fonts */}
-        <link
-          rel="preload"
-          href="/fonts/geist-sans.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
+        {/* Fonts loaded via Next.js font optimization */}
 
         {/* DNS prefetch for external resources */}
         <link rel="dns-prefetch" href="//pusher.com" />
@@ -142,24 +135,7 @@ export default function RootLayout({
           {children}
         </div>
 
-        {/* Service Worker Registration for PWA */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                      console.log('SW registered: ', registration);
-                    })
-                    .catch(function(registrationError) {
-                      console.log('SW registration failed: ', registrationError);
-                    });
-                });
-              }
-            `,
-          }}
-        />
+        {/* Service Worker will be added in future PWA enhancement */}
 
         {/* Focus management for better accessibility */}
         <script

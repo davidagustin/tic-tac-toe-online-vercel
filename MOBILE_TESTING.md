@@ -176,7 +176,7 @@ npm run test:mobile-e2e
 
 ### Target URL
 ```
-https://tic-tac-toe-online-vercel-nazyusl2d-cryptomans-projects.vercel.app
+https://tic-tac-toe-online-vercel.vercel.app
 ```
 
 ### Tested Features

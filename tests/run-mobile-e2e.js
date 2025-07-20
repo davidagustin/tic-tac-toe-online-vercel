@@ -10,7 +10,7 @@ console.log('🎮 Tic-Tac-Toe Mobile E2E Test Runner\n');
 // Configuration
 const CONFIG = {
     production: {
-        url: 'https://tic-tac-toe-online-vercel-nazyusl2d-cryptomans-projects.vercel.app',
+        url: 'https://tic-tac-toe-online-vercel.vercel.app',
         timeout: 60000
     },
     appium: {

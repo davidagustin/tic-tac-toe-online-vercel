@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import { remote, RemoteOptions } from 'webdriverio';
 
 // Production URL - Update this to your actual production URL
-const PRODUCTION_URL = 'https://tic-tac-toe-online-vercel-nazyusl2d-cryptomans-projects.vercel.app';
+const PRODUCTION_URL = 'https://tic-tac-toe-online-vercel.vercel.app';
 
 // Appium capabilities for two different mobile devices
 const user1Capabilities: RemoteOptions = {
