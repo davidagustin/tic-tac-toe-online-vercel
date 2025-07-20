@@ -10,8 +10,14 @@ export function PusherTest() {
   const testPusherConnection = async () => {
     setIsTesting(true);
     try {
-      // Fetch config from server
-      const response = await fetch('/api/pusher-config');
+      // Fetch config from server with cache busting
+      const response = await fetch(`/api/pusher-config?v=${Date.now()}&t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      });
       const config = await response.json();
       
       console.log('Testing Pusher connection with config:', {

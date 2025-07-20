@@ -26,10 +26,12 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const response = await fetch('/api/pusher-config', {
+    const response = await fetch(`/api/pusher-config?v=${Date.now()}&t=${Date.now()}`, {
       signal: controller.signal,
       headers: {
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
     
@@ -42,9 +44,11 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const config = await response.json();
     
     console.log('Fetched Pusher config from server:', {
+      environment: config.environment,
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,
+      fullKey: config.key, // Temporary for debugging
     });
     
     if (!config.key || !config.cluster) {
