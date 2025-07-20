@@ -30,6 +30,17 @@ export class AuthService {
     }
   }
 
+  // Check if user exists
+  static async userExists(username: string): Promise<boolean> {
+    try {
+      const user = await this.getUserByUsername(username);
+      return !!user;
+    } catch (error) {
+      console.error('Error checking if user exists:', error);
+      return false;
+    }
+  }
+
   // Get user by username (alias for getUserByUsername)
   static async getUser(username: string): Promise<User | undefined> {
     return this.getUserByUsername(username);

@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Parse request body
-    const body = await request.json();
+    const body = await request.json() as { username?: string; password?: string };
     username = body.username;
     password = body.password;
 

@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
 
     // Validate request body
     const body = RequestValidator.validateJsonBody(await request.json());
-    username = body.username;
-    password = body.password;
+    username = typeof body.username === 'string' ? body.username : undefined;
+    password = typeof body.password === 'string' ? body.password : undefined;
 
     // Check if required fields exist
     if (!username || !password) {
