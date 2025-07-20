@@ -1,6 +1,7 @@
 'use client';
 
 import { usePusher } from '@/hooks/usePusher';
+import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 
 interface User {
@@ -197,8 +198,8 @@ export default function UserProfile({ userId, onProfileUpdate, onClose }: UserPr
 
                     {/* Connection Status */}
                     <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${isConnected
-                            ? 'bg-green-500/20 text-green-300 border border-green-400/30'
-                            : 'bg-red-500/20 text-red-300 border border-red-400/30'
+                        ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+                        : 'bg-red-500/20 text-red-300 border border-red-400/30'
                         }`}>
                         <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'
                             }`}></div>
@@ -215,10 +216,12 @@ export default function UserProfile({ userId, onProfileUpdate, onClose }: UserPr
                             <div className="flex items-center space-x-6">
                                 <div className="w-24 h-24 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center text-white text-3xl font-bold">
                                     {user.avatar ? (
-                                        <img
+                                        <Image
                                             src={user.avatar}
                                             alt={`${user.username}'s avatar`}
                                             className="w-full h-full rounded-full object-cover"
+                                            width={96}
+                                            height={96}
                                         />
                                     ) : (
                                         user.username.charAt(0).toUpperCase()

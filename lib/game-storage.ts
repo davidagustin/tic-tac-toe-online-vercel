@@ -36,10 +36,10 @@ export function cleanupOldGames(): void {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
   const gamesToDelete: string[] = [];
-  
+
   for (const [gameId, game] of games.entries()) {
     const gameCreatedAt = new Date(game.createdAt);
-    
+
     // Delete games older than 1 hour
     if (gameCreatedAt < oneHourAgo) {
       gamesToDelete.push(gameId);
@@ -49,12 +49,12 @@ export function cleanupOldGames(): void {
       gamesToDelete.push(gameId);
     }
   }
-  
+
   for (const gameId of gamesToDelete) {
     games.delete(gameId);
     console.log(`🧹 Cleaned up old game: ${gameId}`);
   }
-  
+
   if (gamesToDelete.length > 0) {
     console.log(`🧹 Cleaned up ${gamesToDelete.length} old games`);
   }
@@ -63,20 +63,20 @@ export function cleanupOldGames(): void {
 // Cleanup games with inactive users (users who haven't been active for 5 minutes)
 export function cleanupInactiveUsers(): void {
   const now = Date.now();
-  const fiveMinutesAgo = now - (5 * 60 * 1000);
-  
+  const _fiveMinutesAgo = now - (5 * 60 * 1000);
+
   const gamesToUpdate: { gameId: string; updatedGame: Game }[] = [];
   const gamesToDelete: string[] = [];
-  
+
   for (const [gameId, game] of games.entries()) {
     // Check if any players have been inactive
     // For now, we'll assume all players are active
     // In a real implementation, you'd track last activity time per player
-    const activePlayers = game.players.filter((player: string) => {
+    const activePlayers = game.players.filter((_player: string) => {
       // TODO: Implement player activity tracking
       return true;
     });
-    
+
     if (activePlayers.length === 0) {
       // No active players, delete the game
       gamesToDelete.push(gameId);
@@ -89,18 +89,18 @@ export function cleanupInactiveUsers(): void {
       gamesToUpdate.push({ gameId, updatedGame });
     }
   }
-  
+
   // Apply updates
   for (const { gameId, updatedGame } of gamesToUpdate) {
     console.log(`🧹 Removing inactive users from game: ${gameId}`);
     games.set(gameId, updatedGame);
   }
-  
+
   for (const gameId of gamesToDelete) {
     console.log(`🧹 Deleting game with no active users: ${gameId}`);
     games.delete(gameId);
   }
-  
+
   if (gamesToUpdate.length > 0 || gamesToDelete.length > 0) {
     console.log(`🧹 Cleaned up ${gamesToUpdate.length} games with inactive users, deleted ${gamesToDelete.length} empty games`);
   }

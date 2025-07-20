@@ -66,13 +66,13 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
+
     // Get current statistics
     const currentStats = await client.query(
       'SELECT * FROM game_statistics WHERE user_id = $1',
       [userId]
     );
-    
+
     if (currentStats.rows.length === 0) {
       // Create new statistics record
       await client.query(
@@ -86,7 +86,7 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
       );
     } else {
       // Update existing statistics
-      const stats = currentStats.rows[0];
+      const _stats = currentStats.rows[0];
       await client.query(
         'UPDATE game_statistics SET games_played = games_played + 1, games_won = games_won + $1, games_lost = games_lost + $2, games_drawn = games_drawn + $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
         [
@@ -97,7 +97,7 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
         ]
       );
     }
-    
+
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -111,7 +111,7 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
 export async function checkDatabaseHealth() {
   const startTime = Date.now();
   try {
-    const result = await pool.query('SELECT 1 as health_check');
+    const _result = await pool.query('SELECT 1 as health_check');
     const latency = Date.now() - startTime;
     return { status: 'healthy' as const, timestamp: new Date().toISOString(), latency };
   } catch (error) {
@@ -124,7 +124,7 @@ export async function checkDatabaseHealth() {
 export async function initializeDatabase() {
   try {
     const client = await pool.connect();
-    
+
     // Check if tables exist
     const tablesResult = await client.query(`
       SELECT table_name 
@@ -132,10 +132,10 @@ export async function initializeDatabase() {
       WHERE table_schema = 'public' 
       AND table_name IN ('users', 'games', 'lobby_chat_messages', 'game_chat_messages', 'game_statistics')
     `);
-    
+
     const existingTables = tablesResult.rows.map(row => row.table_name);
     console.log('Existing tables:', existingTables);
-    
+
     client.release();
     return { success: true, tables: existingTables };
   } catch (error) {

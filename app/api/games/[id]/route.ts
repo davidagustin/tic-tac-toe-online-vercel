@@ -1,27 +1,28 @@
+import { games, getGame } from '@/lib/game-storage';
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame, games } from '@/lib/game-storage';
 
 // GET /api/games/[id] - Get game by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('🎮 Game Get API: Fetching game with ID:', params.id);
+  const resolvedParams = await params;
+  console.log('🎮 Game Get API: Fetching game with ID:', resolvedParams.id);
   console.log('🎮 Game Get API: Request URL:', request.url);
-  
+
   try {
-    const gameId = params.id;
+    const gameId = resolvedParams.id;
     console.log('🎮 Game Get API: Looking for gameId:', gameId);
-    
+
     // Check what games are available
     const allGames = Array.from(games.entries());
-    console.log('🎮 Game Get API: Available games:', allGames.map(([id, game]: [string, any]) => ({ id, name: game.name })));
-    
+    console.log('🎮 Game Get API: Available games:', allGames.map(([id, game]: [string, unknown]) => ({ id, name: (game as { name?: string })?.name })));
+
     const game = getGame(gameId);
-    
+
     if (!game) {
       console.log('❌ Game Get API: Game not found with ID:', gameId);
-      console.log('❌ Game Get API: Available game IDs:', allGames.map(([id]: [string, any]) => id));
+      console.log('❌ Game Get API: Available game IDs:', allGames.map(([id]: [string, unknown]) => id));
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 

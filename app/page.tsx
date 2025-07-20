@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Lobby from '@/components/Lobby';
 import Game from '@/components/Game';
+import Lobby from '@/components/Lobby';
 import { usePusher } from '@/hooks/usePusher';
+import React, { useEffect, useState } from 'react';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -41,19 +41,19 @@ export default function Home() {
   // Global cleanup function for debugging
   useEffect(() => {
     // Add global cleanup function to window for debugging
-    (window as any).clearAllGames = async () => {
+    (window as Window & { clearAllGames?: () => Promise<void> }).clearAllGames = async () => {
       console.log('🧹 Global cleanup triggered...');
-      
+
       // Clear Pusher games state
       clearGames();
-      
+
       // Clear localStorage
       localStorage.removeItem('ticTacToeUser');
       localStorage.removeItem('currentUser');
-      
+
       // Clear sessionStorage
       sessionStorage.clear();
-      
+
       // Call backend cleanup
       try {
         await fetch('/api/clear-db', { method: 'POST' });
@@ -61,19 +61,19 @@ export default function Home() {
       } catch (error) {
         console.log('⚠️ Backend cleanup failed:', error);
       }
-      
+
       // Force page reload
       window.location.reload();
     };
-    
+
     // Add function to check current state
-    (window as any).checkGameState = () => {
+    (window as Window & { checkGameState?: () => void }).checkGameState = () => {
       console.log('📊 Current game state:');
       console.log('- localStorage ticTacToeUser:', localStorage.getItem('ticTacToeUser'));
       console.log('- localStorage currentUser:', localStorage.getItem('currentUser'));
       console.log('- sessionStorage keys:', Object.keys(sessionStorage));
     };
-    
+
     console.log('🔧 Debug functions available:');
     console.log('- clearAllGames() - Clear all games and reload');
     console.log('- checkGameState() - Check current storage state');
@@ -126,17 +126,17 @@ export default function Home() {
 
       if (response.ok) {
         setUser(data.user);
-        
+
         // Save user to localStorage for persistence
         localStorage.setItem('ticTacToeUser', JSON.stringify(data.user));
-        
+
         // Clear form
         setUsername('');
         setPassword('');
-        
+
         // Show success message
         setSuccess(isLogin ? 'Successfully signed in!' : 'Account created successfully!');
-        
+
         // Show lobby after a brief delay for better UX
         setTimeout(() => {
           setShowLobby(true);
@@ -187,7 +187,7 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           username: user?.username,
           action: 'signout'
         }),
@@ -195,14 +195,14 @@ export default function Home() {
     } catch (error) {
       console.error('Error clearing auth:', error);
     }
-    
+
     // Clear local state
     setUser(null);
     setShowLobby(false);
     setCurrentGame(null);
     setSuccess('');
     setError('');
-    
+
     // Clear localStorage
     localStorage.removeItem('ticTacToeUser');
   };
@@ -237,10 +237,10 @@ export default function Home() {
           </div>
 
           {/* Game Content */}
-          <Game 
-            gameId={currentGame.gameId} 
-            userName={currentGame.userName} 
-            onBackToLobby={handleBackToLobby} 
+          <Game
+            gameId={currentGame.gameId}
+            userName={currentGame.userName}
+            onBackToLobby={handleBackToLobby}
           />
         </div>
       );
@@ -300,7 +300,7 @@ export default function Home() {
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </h1>
             <p className="text-purple-200">
-              {isLogin 
+              {isLogin
                 ? 'Sign in to continue your Tic-Tac-Toe adventure'
                 : 'Join the Tic-Tac-Toe community'
               }

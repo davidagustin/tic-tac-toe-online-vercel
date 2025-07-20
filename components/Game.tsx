@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePusher } from '@/hooks/usePusher';
-import type { Game } from '@/lib/pusher-client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface GameProps {
   gameId: string;
@@ -34,7 +33,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   // Join game channel when component mounts
   useEffect(() => {
     console.log('🎮 Game Component: useEffect triggered - isConnected:', isConnected, 'gameId:', gameId);
-    
+
     if (isConnected && gameId) {
       console.log('🎮 Game Component: Attempting to join game...');
       joinGame(gameId, userName).then(() => {
@@ -55,10 +54,10 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     console.log('🎮 Game Component: Current game status:', currentGame?.status);
     console.log('🎮 Game Component: Current game currentPlayer:', currentGame?.currentPlayer);
     console.log('🎮 Game Component: Current user:', userName);
-    
+
     if (currentGame && currentGame.id === gameId) {
       console.log('✅ Game Component: Game data matched, updating board and UI');
-      
+
       // Convert flat board array to 2D array
       const newBoard: BoardState = [
         [currentGame.board[0], currentGame.board[1], currentGame.board[2]],
@@ -78,8 +77,8 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           setGameMessage("It's a draw!");
         }
       } else if (currentGame.status === 'playing') {
-        const currentPlayerName = currentGame.currentPlayer === 'X' 
-          ? currentGame.players[0] 
+        const currentPlayerName = currentGame.currentPlayer === 'X'
+          ? currentGame.players[0]
           : currentGame.players[1];
         setGameMessage(`${currentPlayerName}'s turn`);
       } else {
@@ -93,28 +92,28 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     }
   }, [currentGame, gameId, userName]);
 
-  // Handle timeout for loading state
+  // Handle timeout for loading state - only based on game data, not connection
   useEffect(() => {
-    if (!currentGame || !isConnected) {
+    if (!currentGame) {
       const isChrome = typeof window !== 'undefined' && navigator.userAgent.includes('Chrome');
       const timeoutDuration = isChrome ? 45000 : 30000; // Longer timeout for Chrome
-      
+
       console.log(`🎮 Game Component: Setting loading timeout for ${timeoutDuration}ms (Chrome: ${isChrome})`);
-      
+
       const timeout = setTimeout(() => {
         console.log('🎮 Game Component: Loading timeout reached');
         setShowTimeoutMessage(true);
       }, timeoutDuration);
-      
+
       return () => clearTimeout(timeout);
     } else {
       setShowTimeoutMessage(false);
     }
-  }, [currentGame, isConnected]);
+  }, [currentGame]); // Removed isConnected dependency
 
   // Memoized computed values
-  const isGameEnded = useMemo(() => 
-    currentGame?.status === 'finished', 
+  const isGameEnded = useMemo(() =>
+    currentGame?.status === 'finished',
     [currentGame?.status]
   );
 
@@ -159,7 +158,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     console.log('🎮 Game Component: board[y][x]:', board[y][x]);
     console.log('🎮 Game Component: isMyTurn:', isMyTurn);
     console.log('🎮 Game Component: currentGame?.status:', currentGame?.status);
-    
+
     if (!isConnected || isGameEnded || board[y][x] !== null || !isMyTurn || currentGame?.status !== 'playing') {
       console.log('🎮 Game Component: Move blocked - conditions not met');
       return;
@@ -228,20 +227,32 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     );
   }
 
-  // Show loading state with timeout
-  if (!currentGame || !isConnected) {
-    
+  // Show loading state only if game data is not available
+  // Note: We don't require isConnected for the game to work, as the API can work without Pusher
+  if (!currentGame) {
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-lg text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
           <h2 className="text-2xl font-bold text-white mb-2">Loading Game...</h2>
           <p className="text-purple-200">
-            {showTimeoutMessage 
-              ? "Connection timeout. Please check your connection and try again." 
+            {showTimeoutMessage
+              ? "Connection timeout. Please check your connection and try again."
               : "Connecting to game server"
             }
           </p>
+
+          {/* Connection status indicator */}
+          <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-4 ${isConnected
+            ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+            : 'bg-red-500/20 text-red-300 border border-red-400/30'
+            }`}>
+            <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'
+              }`}></div>
+            {isConnected ? 'Connected to real-time' : 'Real-time disconnected (API still works)'}
+          </div>
+
           {showTimeoutMessage && (
             <button
               onClick={onBackToLobby}
@@ -266,7 +277,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           <p className="text-xl text-purple-200 mb-4">
             Game: <span className="text-yellow-300 font-semibold">{currentGame.name}</span>
           </p>
-          
+
           {/* Game Status */}
           <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
             <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
