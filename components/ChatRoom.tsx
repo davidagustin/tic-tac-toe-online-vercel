@@ -95,10 +95,9 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
       }
 
       setText('');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      console.error('Error sending message:', errorMessage);
-      alert(errorMessage);
+    } catch (error: any) {
+      console.error('Error posting message:', error);
+      alert('Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
     }

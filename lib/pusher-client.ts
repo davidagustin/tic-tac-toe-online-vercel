@@ -9,9 +9,10 @@ const getPusherClientConfig = (key: string, cluster: string) => ({
   forceTLS: true,
   // Performance settings
   disableStats: true, // Disable stats collection for better performance
-  // Connection settings
-  timeout: 20000, // 20 second timeout
-  // Remove custom wsHost and wsPort to use default Pusher endpoints
+  // Additional settings for better compatibility
+  wsHost: `ws-${cluster}.pusherapp.com`,
+  wsPort: 443,
+  wssPort: 443,
 });
 
 // Function to initialize Pusher client with config from server
@@ -25,12 +26,10 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const response = await fetch(`/api/pusher-config?v=${Date.now()}&t=${Date.now()}`, {
+    const response = await fetch('/api/pusher-config', {
       signal: controller.signal,
       headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        'Cache-Control': 'no-cache',
       },
     });
     
@@ -43,11 +42,9 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const config = await response.json();
     
     console.log('Fetched Pusher config from server:', {
-      environment: config.environment,
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,
-      fullKey: config.key, // Temporary for debugging
     });
     
     if (!config.key || !config.cluster) {
@@ -71,13 +68,13 @@ export async function initializePusherClient(): Promise<PusherClient> {
       console.log('Pusher client: Disconnected');
     });
 
-    pusherClient.connection.bind('error', (error: unknown) => {
+    pusherClient.connection.bind('error', (error: any) => {
       console.error('Pusher client: Connection error:', error);
       console.error('Error details:', {
-        code: (error as { code?: string })?.code,
-        data: (error as { data?: unknown })?.data,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        type: (error as { type?: string })?.type
+        code: error.code,
+        data: error.data,
+        message: error.message,
+        type: error.type
       });
     });
 
@@ -133,6 +130,12 @@ export const CHANNELS = {
       throw new Error('Invalid user ID for channel');
     }
     return `user-${userId}`;
+  },
+  PRIVATE: (userId: string) => {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid user ID for private channel');
+    }
+    return `private-user-${userId}`;
   },
 };
 

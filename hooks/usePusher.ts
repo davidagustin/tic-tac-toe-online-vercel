@@ -21,89 +21,12 @@ export function usePusher() {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const connectionAttemptRef = useRef<boolean>(false);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitializedRef = useRef<boolean>(false);
-
-  // Load games from API
-  const loadGamesFromAPI = useCallback(async () => {
-    try {
-      const response = await fetch('/api/game/list');
-      if (response.ok) {
-        const gamesData = await response.json();
-        setGames(gamesData);
-      }
-    } catch (error) {
-      console.error('Failed to load games from API:', error);
-    }
-  }, []);
-
-  // Set up polling as fallback when Pusher fails
-  const startPolling = useCallback(() => {
-    // Clear any existing polling interval
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    
-    console.log('Starting API polling as Pusher fallback...');
-    setIsUsingFallback(true);
-    
-    let retryCount = 0;
-    const maxRetries = 3;
-    const baseInterval = 10000; // Start with 10 seconds
-    
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch('/api/game/list');
-        
-        if (response.status === 429) {
-          // Rate limited - increase interval exponentially
-          retryCount++;
-          console.log(`Rate limited (${retryCount}/${maxRetries}). Backing off...`);
-          
-          if (retryCount >= maxRetries) {
-            console.log('Max retries reached. Stopping polling.');
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current);
-              pollIntervalRef.current = null;
-            }
-            return;
-          }
-          
-          // Exponential backoff: 10s, 20s, 40s
-          const newInterval = baseInterval * Math.pow(2, retryCount);
-          console.log(`Backing off to ${newInterval}ms interval`);
-          return;
-        }
-        
-        if (response.ok) {
-          const gamesData = await response.json();
-          setGames(gamesData);
-          retryCount = 0; // Reset retry count on success
-        } else {
-          console.error('Polling failed with status:', response.status);
-        }
-      } catch (error) {
-        console.error('Polling failed:', error);
-        retryCount++;
-        
-        if (retryCount >= maxRetries) {
-          console.log('Max retries reached. Stopping polling.');
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-        }
-      }
-    }, baseInterval); // Poll every 10 seconds initially
-    
-    return pollIntervalRef.current;
-  }, []);
 
   // Connect to Pusher
   const connect = useCallback(async () => {
     // Prevent multiple connection attempts
-    if (connectionAttemptRef.current || isInitializedRef.current) {
-      console.log('Connection attempt already in progress or already initialized, skipping...');
+    if (connectionAttemptRef.current) {
+      console.log('Connection attempt already in progress, skipping...');
       return;
     }
     
@@ -126,7 +49,6 @@ export function usePusher() {
         setIsInitializing(false);
         setIsUsingFallback(false);
         connectionAttemptRef.current = false;
-        isInitializedRef.current = true;
         return;
       }
       
@@ -147,17 +69,12 @@ export function usePusher() {
         
         // Clear connection attempt flag
         connectionAttemptRef.current = false;
-        isInitializedRef.current = true;
         
         // Clear any existing timeout
         if (connectionTimeoutRef.current) {
           clearTimeout(connectionTimeoutRef.current);
           connectionTimeoutRef.current = null;
         }
-        
-        // Load games immediately when connected
-        console.log('Loading games after successful connection...');
-        loadGamesFromAPI();
       });
 
       pusherClient.connection.bind('disconnected', () => {
@@ -261,7 +178,7 @@ export function usePusher() {
         startPolling();
       }
     }
-  }, [loadGamesFromAPI, startPolling, currentGame?.id]);
+  }, [currentGame]);
 
   // Disconnect from Pusher
   const disconnect = useCallback(() => {
@@ -286,7 +203,6 @@ export function usePusher() {
       
       // Clear connection attempt flag and timeouts
       connectionAttemptRef.current = false;
-      isInitializedRef.current = false;
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current);
         connectionTimeoutRef.current = null;
@@ -408,32 +324,96 @@ export function usePusher() {
     }
   }, []);
 
+  // Fallback: Load games from API if Pusher fails
+  const loadGamesFromAPI = useCallback(async () => {
+    try {
+      const response = await fetch('/api/game/list');
+      if (response.ok) {
+        const gamesData = await response.json();
+        setGames(gamesData);
+      }
+    } catch (error) {
+      console.error('Failed to load games from API:', error);
+    }
+  }, []);
+
+  // Set up polling as fallback when Pusher fails
+  const startPolling = useCallback(() => {
+    // Clear any existing polling interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    
+    console.log('Starting API polling as Pusher fallback...');
+    setIsUsingFallback(true);
+    
+    let retryCount = 0;
+    const maxRetries = 3;
+    const baseInterval = 10000; // Start with 10 seconds
+    
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch('/api/game/list');
+        
+        if (response.status === 429) {
+          // Rate limited - increase interval exponentially
+          retryCount++;
+          console.log(`Rate limited (${retryCount}/${maxRetries}). Backing off...`);
+          
+          if (retryCount >= maxRetries) {
+            console.log('Max retries reached. Stopping polling.');
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+            return;
+          }
+          
+          // Exponential backoff: 10s, 20s, 40s
+          const newInterval = baseInterval * Math.pow(2, retryCount);
+          console.log(`Backing off to ${newInterval}ms interval`);
+          return;
+        }
+        
+        if (response.ok) {
+          const gamesData = await response.json();
+          setGames(gamesData);
+          retryCount = 0; // Reset retry count on success
+        } else {
+          console.error('Polling failed with status:', response.status);
+        }
+      } catch (error) {
+        console.error('Polling failed:', error);
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          console.log('Max retries reached. Stopping polling.');
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+        }
+      }
+    }, baseInterval); // Poll every 10 seconds initially
+    
+    return pollIntervalRef.current;
+  }, []);
+
   // Initialize connection on mount
   useEffect(() => {
     // Only attempt connection if not already connected and not already attempting
-    if (!isConnected && !connectionAttemptRef.current && !isInitializedRef.current) {
+    if (!isConnected && !connectionAttemptRef.current) {
       connect();
     }
 
     // Try to load games after a delay if not connected
     const timeout = setTimeout(() => {
       console.log('Checking connection status after timeout...', { isConnected, isInitializing });
-      
-      // Check both React state and actual Pusher connection state
-      const pusherClient = pusherClientRef.current;
-      const actualConnectionState = pusherClient?.connection?.state;
-      
-      console.log('Actual Pusher connection state:', actualConnectionState);
-      
-      if (!isConnected && !isUsingFallback && actualConnectionState !== 'connected') {
+      if (!isConnected && !isUsingFallback) {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
         startPolling();
-      } else if (actualConnectionState === 'connected') {
-        console.log('Pusher is actually connected, updating state...');
-        setIsConnected(true);
-        setIsUsingFallback(false);
-        setIsInitializing(false);
       }
     }, 6000); // Increased timeout to 6 seconds to allow connection to establish
 
@@ -449,7 +429,7 @@ export function usePusher() {
       }
       disconnect();
     };
-  }, [connect, loadGamesFromAPI, startPolling, disconnect, isConnected, isInitializing, isUsingFallback]);
+  }, []); // Remove dependencies to prevent multiple calls
 
   return {
     isConnected,
@@ -465,7 +445,6 @@ export function usePusher() {
     reconnect: () => {
       console.log('Manual reconnect triggered');
       connectionAttemptRef.current = false;
-      isInitializedRef.current = false;
       connect();
     },
     joinGame,

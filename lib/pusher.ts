@@ -1,49 +1,6 @@
 import PusherServer from 'pusher';
 import PusherClient from 'pusher-js';
 
-// Environment detection
-const getEnvironment = () => {
-  // Check for custom environment variable first
-  if (process.env.APP_ENV) {
-    return process.env.APP_ENV;
-  }
-  return process.env.NODE_ENV || 'development';
-};
-
-// Get environment-specific Pusher configuration
-const getPusherConfig = () => {
-  const env = getEnvironment();
-  
-  // Environment-specific variable names
-  const config: Record<string, {
-    PUSHER_APP_ID: string | undefined;
-    PUSHER_KEY: string | undefined;
-    PUSHER_SECRET: string | undefined;
-    PUSHER_CLUSTER: string | undefined;
-  }> = {
-    development: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_DEV || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_DEV || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_DEV || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_DEV || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-    staging: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_STAGING || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_STAGING || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_STAGING || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_STAGING || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-    production: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_PROD || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_PROD || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_PROD || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_PROD || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-  };
-
-  return config[env] || config.development;
-};
-
 // Environment validation (server-side only)
 const validateEnvironment = () => {
   // Only validate on server-side
@@ -56,15 +13,12 @@ const validateEnvironment = () => {
     };
   }
 
-  // Get environment-specific config
-  const pusherConfig = getPusherConfig();
-
   // Safe environment variable access
   const required = {
-    PUSHER_APP_ID: pusherConfig.PUSHER_APP_ID || undefined,
-    PUSHER_KEY: pusherConfig.PUSHER_KEY || undefined,
-    PUSHER_SECRET: pusherConfig.PUSHER_SECRET || undefined,
-    PUSHER_CLUSTER: pusherConfig.PUSHER_CLUSTER || undefined,
+    PUSHER_APP_ID: process.env.PUSHER_APP_ID || undefined,
+    PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY || undefined,
+    PUSHER_SECRET: process.env.PUSHER_SECRET || undefined,
+    PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || undefined,
   };
 
   // Always return the values, don't throw errors
@@ -86,31 +40,29 @@ const createPusherServer = () => {
   }
   
   const serverEnv = validateEnvironment();
-  const currentEnv = getEnvironment();
   
   // Validate required environment variables
   if (!serverEnv.PUSHER_APP_ID) {
-    console.error(`PUSHER_APP_ID is not set for ${currentEnv} environment`);
+    console.error('PUSHER_APP_ID is not set');
     return null;
   }
   
   if (!serverEnv.PUSHER_KEY) {
-    console.error(`PUSHER_KEY is not set for ${currentEnv} environment`);
+    console.error('PUSHER_KEY is not set');
     return null;
   }
   
   if (!serverEnv.PUSHER_SECRET) {
-    console.error(`PUSHER_SECRET is not set for ${currentEnv} environment`);
+    console.error('PUSHER_SECRET is not set');
     return null;
   }
   
   if (!serverEnv.PUSHER_CLUSTER) {
-    console.error(`PUSHER_CLUSTER is not set for ${currentEnv} environment`);
+    console.error('PUSHER_CLUSTER is not set');
     return null;
   }
   
-  console.log(`Creating Pusher server for ${currentEnv} environment with config:`, {
-    environment: currentEnv,
+  console.log('Creating Pusher server with config:', {
     appId: serverEnv.PUSHER_APP_ID ? 'Set' : 'Not set',
     key: serverEnv.PUSHER_KEY ? `${serverEnv.PUSHER_KEY.substring(0, 8)}...` : 'Not set',
     cluster: serverEnv.PUSHER_CLUSTER,
@@ -160,12 +112,10 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const response = await fetch(`/api/pusher-config?v=${Date.now()}&t=${Date.now()}`, {
+    const response = await fetch('/api/pusher-config', {
       signal: controller.signal,
       headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        'Cache-Control': 'no-cache',
       },
     });
     
@@ -178,11 +128,9 @@ export async function initializePusherClient(): Promise<PusherClient> {
     const config = await response.json();
     
     console.log('Fetched Pusher config from server:', {
-      environment: config.environment,
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,
-      fullKey: config.key, // Temporary for debugging
     });
     
     if (!config.key || !config.cluster) {
@@ -206,12 +154,13 @@ export async function initializePusherClient(): Promise<PusherClient> {
       console.log('Pusher client: Disconnected');
     });
 
-    pusherClient.connection.bind('error', (error: unknown) => {
-      console.error('Pusher connection error:', error);
+    pusherClient.connection.bind('error', (error: any) => {
+      console.error('Pusher client: Connection error:', error);
       console.error('Error details:', {
-        code: (error as { code?: string })?.code,
-        data: (error as { data?: unknown })?.data,
-        message: error instanceof Error ? error.message : 'Unknown error'
+        code: error.code,
+        data: error.data,
+        message: error.message,
+        type: error.type
       });
     });
 
@@ -244,34 +193,13 @@ export function cleanupPusherClient(): void {
   }
 }
 
-// Export environment-specific configuration utility
-export const getEnvironmentSpecificConfig = () => {
-  const currentEnv = getEnvironment();
-  const pusherConfig = getPusherConfig();
-  
-  return {
-    environment: currentEnv,
-    pusher: {
-      appId: pusherConfig.PUSHER_APP_ID,
-      key: pusherConfig.PUSHER_KEY,
-      secret: pusherConfig.PUSHER_SECRET,
-      cluster: pusherConfig.PUSHER_CLUSTER,
-    },
-    isDevelopment: currentEnv === 'development',
-    isStaging: currentEnv === 'staging',
-    isProduction: currentEnv === 'production',
-  };
-};
-
 // Debug Pusher configuration (server-side only)
 if (typeof window === 'undefined') {
-  const config = getEnvironmentSpecificConfig();
   console.log('Server-side Pusher Config:', {
-    environment: config.environment,
-    key: config.pusher.key ? 'Set' : 'Not set',
-    cluster: config.pusher.cluster,
-    keyLength: config.pusher.key?.length || 0,
-    appId: config.pusher.appId ? 'Set' : 'Not set',
+    key: env.PUSHER_KEY ? 'Set' : 'Not set',
+    cluster: env.PUSHER_CLUSTER,
+    keyLength: env.PUSHER_KEY?.length || 0,
+    appId: env.PUSHER_APP_ID ? 'Set' : 'Not set',
   });
 }
 
@@ -289,6 +217,12 @@ export const CHANNELS = {
       throw new Error('Invalid user ID for channel');
     }
     return `user-${userId}`;
+  },
+  PRIVATE: (userId: string) => {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid user ID for private channel');
+    }
+    return `private-user-${userId}`;
   },
 };
 
@@ -371,14 +305,14 @@ export class PusherUtils {
   }
 
   // Sanitize data for Pusher
-  static sanitizeData(data: unknown): unknown {
+  static sanitizeData(data: any): any {
     if (typeof data === 'string') {
       return data.substring(0, 1000); // Limit string length
     }
     if (typeof data === 'object' && data !== null) {
-      const sanitized: Record<string, unknown> = {};
+      const sanitized: any = {};
       for (const [key, value] of Object.entries(data)) {
-        if (key.length <= 50) { // Limit key length
+        if (typeof key === 'string' && key.length <= 50) {
           sanitized[key] = this.sanitizeData(value);
         }
       }
@@ -387,50 +321,67 @@ export class PusherUtils {
     return data;
   }
 
-  // Trigger event with validation and sanitization
+  // Trigger event with error handling and validation
   static async triggerEvent(
     channel: string,
     event: string,
-    data: unknown
+    data: any
   ): Promise<void> {
-    if (!pusherServer) {
-      throw new Error('Pusher server not initialized');
-    }
-
-    if (!this.validateChannelName(channel)) {
-      throw new Error('Invalid channel name');
-    }
-
-    if (!this.validateEventName(event)) {
-      throw new Error('Invalid event name');
-    }
-
-    const sanitizedData = this.sanitizeData(data);
-
     try {
+      if (!this.validateChannelName(channel)) {
+        throw new Error(`Invalid channel name: ${channel}`);
+      }
+
+      if (!this.validateEventName(event)) {
+        throw new Error(`Invalid event name: ${event}`);
+      }
+
+      const sanitizedData = this.sanitizeData(data);
+
+      if (!pusherServer) {
+        throw new Error('PusherServer is not available (client-side)');
+      }
+
       await pusherServer.trigger(channel, event, sanitizedData);
-    } catch (error: unknown) {
-      console.error('Failed to trigger Pusher event:', error);
+      
+      console.log(`Pusher event triggered: ${channel}:${event}`);
+    } catch (error) {
+      console.error('Failed to trigger Pusher event:', {
+        channel,
+        event,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   }
 
-  // Subscribe to channel with event handlers
+  // Subscribe to channel with error handling
   static subscribeToChannel(
     pusherClient: PusherClient,
     channelName: string,
-    eventHandlers: Record<string, (data: unknown) => void>
+    eventHandlers: Record<string, (data: any) => void>
   ): void {
-    if (!this.validateChannelName(channelName)) {
-      throw new Error('Invalid channel name');
-    }
-
-    const channel = pusherClient.subscribe(channelName);
-
-    for (const [event, handler] of Object.entries(eventHandlers)) {
-      if (this.validateEventName(event)) {
-        channel.bind(event, handler);
+    try {
+      if (!this.validateChannelName(channelName)) {
+        throw new Error(`Invalid channel name: ${channelName}`);
       }
+
+      const channel = pusherClient.subscribe(channelName);
+
+      // Bind event handlers
+      Object.entries(eventHandlers).forEach(([event, handler]) => {
+        if (this.validateEventName(event)) {
+          channel.bind(event, handler);
+        }
+      });
+
+      console.log(`Subscribed to channel: ${channelName}`);
+    } catch (error) {
+      console.error('Failed to subscribe to channel:', {
+        channelName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
     }
   }
 

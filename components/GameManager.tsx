@@ -15,7 +15,6 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'playing'>('all');
-  const [error, setError] = useState<string | null>(null);
 
   // Load games on mount
   useEffect(() => {
@@ -81,10 +80,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.log('Game created successfully:', data.game);
       setNewGameName('');
       setShowCreateForm(false);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create game';
-      console.error('Error creating game:', errorMessage);
-      alert(errorMessage || 'Failed to create game. Please try again.');
+    } catch (error: any) {
+      console.error('Error creating game:', error);
+      alert(error.message || 'Failed to create game. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -128,10 +126,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       
       // Call the parent callback to handle navigation
       onJoinGame(gameId);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to join game';
-      console.error('Error joining game:', errorMessage);
-      setError(errorMessage);
+    } catch (error: any) {
+      console.error('Error joining game:', error);
+      alert(error.message || 'Failed to join game. Please try again.');
     }
   }, [userName, onJoinGame, pusherGames]);
 

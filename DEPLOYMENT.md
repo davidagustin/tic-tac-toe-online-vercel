@@ -1,100 +1,71 @@
 # Deployment Guide
 
-This guide will help you deploy the Tic-Tac-Toe application to production.
+## Current Status
 
-## Architecture
+✅ **Local Development**: Working with new Pusher credentials  
+⚠️ **Production**: Needs environment variable update
 
-The application consists of:
-1. **Next.js Frontend** - Deployed on Vercel
-2. **Pusher** - Real-time communication service
-3. **PostgreSQL Database** - Deployed on Vercel Postgres
+## Required Environment Variables for Production
 
-## Step 1: Set up Pusher
+You need to update your Vercel environment variables with these new Pusher credentials:
 
-1. Go to [https://pusher.com/](https://pusher.com/)
-2. Create a free account
-3. Create a new Channels app
-4. Get your credentials:
-   - App ID
-   - Key
-   - Secret
-   - Cluster (usually "us3")
-
-## Step 2: Set up Vercel Postgres
-
-1. Go to your Vercel dashboard
-2. Create a new Postgres database
-3. Copy the connection string
-
-## Step 3: Deploy to Vercel
-
-### Environment Variables
-
-Set these environment variables in your Vercel project:
-
-```env
-# Database
-DATABASE_URL="your_vercel_postgres_connection_string"
-PGHOST_UNPOOLED="your_postgres_host"
-
-# Pusher
-PUSHER_APP_ID="your_pusher_app_id"
-NEXT_PUBLIC_PUSHER_KEY="your_pusher_key"
-PUSHER_SECRET="your_pusher_secret"
-NEXT_PUBLIC_PUSHER_CLUSTER="us3"
-
-# Next.js
-NEXTAUTH_SECRET="your_nextauth_secret"
-NEXTAUTH_URL="https://your-domain.vercel.app"
+```
+PUSHER_APP_ID=2024852
+NEXT_PUBLIC_PUSHER_KEY=09915e27605d8b2d1cda
+PUSHER_SECRET=ef9b3bdfe1431d0a6a83
+NEXT_PUBLIC_PUSHER_CLUSTER=us3
 ```
 
-### Deploy Steps
+## Steps to Update Vercel Environment Variables
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Add the environment variables above
-4. Deploy!
+1. **Go to Vercel Dashboard**:
+   - Visit https://vercel.com/dashboard
+   - Select your `tic-tac-toe-online-vercel` project
 
-## Step 4: Database Setup
+2. **Navigate to Settings**:
+   - Click on the "Settings" tab
+   - Select "Environment Variables" from the left sidebar
 
-1. Run the database migrations:
-   ```sql
-   -- This will be done automatically by Vercel Postgres
-   -- The schema is in db/setup.sql
-   ```
+3. **Update Each Variable**:
+   - Find each Pusher variable and click "Edit"
+   - Update with the new values above
+   - Make sure to select "Production" environment
+   - Click "Save"
 
-## Troubleshooting
+4. **Redeploy**:
+   - After updating all variables, go to "Deployments" tab
+   - Click "Redeploy" on the latest deployment
 
-### Connection Issues
-- Verify that all environment variables are set correctly
-- Check that your Pusher app is active
-- Ensure your database connection string is correct
+## Verify the Update
 
-### Real-time Issues
-- Check that Pusher credentials are correct
-- Verify that the cluster matches your Pusher app
-- Check browser console for connection errors
+After updating the environment variables and redeploying, test:
 
-### Database Issues
-- Verify the DATABASE_URL is correct
-- Check that the database is accessible
-- Ensure the schema has been applied
+```bash
+# Test server connection
+curl https://tic-tac-toe-online-vercel.vercel.app/api/test-pusher-connection
 
-## Security Considerations
+# Test client configuration
+curl https://tic-tac-toe-online-vercel.vercel.app/api/pusher-config
+```
 
-- All API routes include rate limiting and input validation
-- Pusher provides built-in authentication and authorization
-- Database connections use connection pooling
-- CORS is configured for production
+You should see the new key `09915e27605d8b2d1cda` in the response.
 
-## Monitoring
+## Current Production Status
 
-- Vercel provides built-in analytics and monitoring
-- Pusher dashboard shows connection metrics
-- Database performance can be monitored in Vercel dashboard
+- ✅ Server-side Pusher connection: Working
+- ⚠️ Client-side configuration: Using old credentials
+- ✅ Application functionality: Working with fallback mode
+- ✅ Real-time features: Will work after credential update
 
-## Scaling
+## Local Development
 
-- Vercel automatically scales based on traffic
-- Pusher handles thousands of concurrent connections
-- Database connections are pooled for efficiency 
+Local development is working perfectly with the new credentials:
+
+```bash
+npm run dev
+```
+
+Test local connection:
+```bash
+curl http://localhost:3001/api/test-pusher-connection
+``` 
