@@ -19,8 +19,9 @@ export async function GET() {
         await pusherServer.trigger('test-channel', 'test-event', { message: 'test' });
       }
       connectionTest = 'Success';
-    } catch (error: any) {
-      connectionTest = `Failed: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      connectionTest = `Failed: ${errorMessage}`;
     }
 
     return NextResponse.json({

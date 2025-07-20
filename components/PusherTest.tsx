@@ -1,10 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import PusherClient from 'pusher-js';
 
 export function PusherTest() {
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<{
+    success?: boolean;
+    message?: string;
+    error?: string;
+    details?: unknown;
+    timestamp?: string;
+  } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
   const testPusherConnection = async () => {
@@ -51,11 +57,12 @@ export function PusherTest() {
         console.log('Test Pusher: Disconnected');
       });
 
-      testPusher.connection.bind('error', (error: any) => {
+      testPusher.connection.bind('error', (error: unknown) => {
         console.error('Test Pusher: Connection error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         setTestResult({
           success: false,
-          error: error.message || 'Connection failed',
+          error: errorMessage,
           details: error,
           timestamp: new Date().toISOString(),
         });
@@ -67,11 +74,12 @@ export function PusherTest() {
       
       console.log('Server test result:', serverResult);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Test failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Test failed';
       setTestResult({
         success: false,
-        error: error instanceof Error ? error.message : 'Test failed',
+        error: errorMessage,
         timestamp: new Date().toISOString(),
       });
     } finally {

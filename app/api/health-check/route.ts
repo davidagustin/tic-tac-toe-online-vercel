@@ -8,7 +8,7 @@ interface HealthCheck {
   status: HealthStatus;
   latency?: number;
   error?: string;
-  usage?: any;
+  usage?: Record<string, number>;
 }
 
 export async function GET() {
@@ -35,10 +35,11 @@ export async function GET() {
         latency: dbHealth.latency,
         error: dbHealth.error,
       };
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       healthChecks.checks.database = {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       };
     }
 
@@ -50,10 +51,11 @@ export async function GET() {
       healthChecks.checks.pusher = {
         status: 'healthy',
       };
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       healthChecks.checks.pusher = {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       };
     }
 
@@ -102,13 +104,14 @@ export async function GET() {
         },
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     healthChecks.responseTime = Date.now() - startTime;
     
     return NextResponse.json(
       {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         ...healthChecks,
       },
       {

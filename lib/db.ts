@@ -92,7 +92,7 @@ export async function createConnection(): Promise<PoolClient | null> {
 }
 
 // Enhanced query function with retry logic and better error handling
-export async function query(sql: string, params?: any[], retries: number = 3): Promise<any[]> {
+export async function query(sql: string, params?: unknown[], retries: number = 3): Promise<unknown[]> {
   const poolInstance = getPool();
   let client: PoolClient | null = null;
   
@@ -110,7 +110,7 @@ export async function query(sql: string, params?: any[], retries: number = 3): P
       }
       
       return result.rows;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Database query error (attempt ${attempt}/${retries}):`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         sql: sql.substring(0, 100),

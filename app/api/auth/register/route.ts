@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthService } from '@/lib/auth.js';
+import { AuthService } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   let username: string | undefined;

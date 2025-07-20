@@ -1,5 +1,5 @@
 // Database-based authentication module for persistent user management
-import { query } from './db.js';
+import { query } from './db';
 import crypto from 'crypto';
 
 export interface User {
@@ -30,81 +30,96 @@ export class AuthService {
     }
   }
 
+  // Get user by username (alias for getUserByUsername)
   static async getUser(username: string): Promise<User | undefined> {
-    try {
-      const result = await query(
-        'SELECT id, username, password, created_at FROM users WHERE username = $1',
-        [username]
-      );
-      return result[0] || undefined;
-    } catch (error) {
-      console.error('Error getting user:', error);
-      return undefined;
-    }
+    return this.getUserByUsername(username);
   }
 
+  // Create new user
   static async createUser(username: string, password: string): Promise<User> {
     try {
-      // Hash the password for security
       const hashedPassword = this.hashPassword(password);
       
       const result = await query(
-        'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username, password, created_at',
+        'INSERT INTO users (username, password, created_at) VALUES ($1, $2, NOW()) RETURNING *',
         [username, hashedPassword]
       );
       
-      return result[0];
+      return result[0] as User;
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
     }
   }
 
-  static async userExists(username: string): Promise<boolean> {
+  // Get user by username
+  static async getUserByUsername(username: string): Promise<User | undefined> {
     try {
-      const result = await query(
-        'SELECT COUNT(*) as count FROM users WHERE username = $1',
-        [username]
-      );
-      return parseInt(result[0].count) > 0;
+      const result = await query('SELECT * FROM users WHERE username = $1', [username]);
+      return result[0] as User | undefined;
     } catch (error) {
-      console.error('Error checking if user exists:', error);
-      return false;
+      console.error('Error getting user by username:', error);
+      return undefined;
     }
   }
 
-  static async validateCredentials(username: string, password: string): Promise<boolean> {
+  // Get user by ID
+  static async getUserById(id: number): Promise<User | undefined> {
     try {
-      const user = await this.getUser(username);
-      if (!user) return false;
+      const result = await query('SELECT * FROM users WHERE id = $1', [id]);
+      return result[0] as User | undefined;
+    } catch (error) {
+      console.error('Error getting user by ID:', error);
+      return undefined;
+    }
+  }
+
+  // Validate user credentials
+  static async validateCredentials(username: string, password: string): Promise<User | undefined> {
+    try {
+      const user = await this.getUserByUsername(username);
+      if (!user) {
+        return undefined;
+      }
+
+      const hashedPassword = user.password;
+      const isValid = this.verifyPassword(password, hashedPassword);
       
-      // Verify the password hash
-      return this.verifyPassword(password, user.password);
+      return isValid ? user : undefined;
     } catch (error) {
       console.error('Error validating credentials:', error);
-      return false;
+      return undefined;
     }
   }
 
+  // Get all users (for admin purposes)
   static async getAllUsers(): Promise<User[]> {
     try {
-      const result = await query(
-        'SELECT id, username, password, created_at FROM users ORDER BY created_at DESC'
-      );
-      return result;
+      const result = await query('SELECT * FROM users ORDER BY created_at DESC');
+      return result as User[];
     } catch (error) {
       console.error('Error getting all users:', error);
       return [];
     }
   }
 
-  static async deleteUser(username: string): Promise<boolean> {
+  // Update user password
+  static async updatePassword(userId: number, newPassword: string): Promise<boolean> {
     try {
-      const result = await query(
-        'DELETE FROM users WHERE username = $1 RETURNING id',
-        [username]
-      );
-      return result.length > 0;
+      const hashedPassword = this.hashPassword(newPassword);
+      await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, userId]);
+      return true;
+    } catch (error) {
+      console.error('Error updating password:', error);
+      return false;
+    }
+  }
+
+  // Delete user
+  static async deleteUser(userId: number): Promise<boolean> {
+    try {
+      const result = await query('DELETE FROM users WHERE id = $1', [userId]);
+      return (result as unknown[]).length > 0;
     } catch (error) {
       console.error('Error deleting user:', error);
       return false;
@@ -122,11 +137,16 @@ export class AuthService {
     return crypto.timingSafeEqual(Buffer.from(hashedPassword), Buffer.from(hash));
   }
 
+  // Alias for verifyPassword (for compatibility)
+  static async comparePassword(password: string, hash: string): Promise<boolean> {
+    return this.verifyPassword(password, hash);
+  }
+
   // For debugging purposes
   static async getUsersCount(): Promise<number> {
     try {
       const result = await query('SELECT COUNT(*) as count FROM users');
-      return parseInt(result[0].count);
+      return parseInt((result[0] as { count: string }).count);
     } catch (error) {
       console.error('Error getting users count:', error);
       return 0;

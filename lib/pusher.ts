@@ -206,13 +206,12 @@ export async function initializePusherClient(): Promise<PusherClient> {
       console.log('Pusher client: Disconnected');
     });
 
-    pusherClient.connection.bind('error', (error: any) => {
-      console.error('Pusher client: Connection error:', error);
+    pusherClient.connection.bind('error', (error: unknown) => {
+      console.error('Pusher connection error:', error);
       console.error('Error details:', {
-        code: error.code,
-        data: error.data,
-        message: error.message,
-        type: error.type
+        code: (error as { code?: string })?.code,
+        data: (error as { data?: unknown })?.data,
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     });
 
@@ -378,14 +377,14 @@ export class PusherUtils {
   }
 
   // Sanitize data for Pusher
-  static sanitizeData(data: any): any {
+  static sanitizeData(data: unknown): unknown {
     if (typeof data === 'string') {
       return data.substring(0, 1000); // Limit string length
     }
     if (typeof data === 'object' && data !== null) {
-      const sanitized: any = {};
+      const sanitized: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
-        if (typeof key === 'string' && key.length <= 50) {
+        if (key.length <= 50) { // Limit key length
           sanitized[key] = this.sanitizeData(value);
         }
       }
@@ -394,67 +393,50 @@ export class PusherUtils {
     return data;
   }
 
-  // Trigger event with error handling and validation
+  // Trigger event with validation and sanitization
   static async triggerEvent(
     channel: string,
     event: string,
-    data: any
+    data: unknown
   ): Promise<void> {
+    if (!pusherServer) {
+      throw new Error('Pusher server not initialized');
+    }
+
+    if (!this.validateChannelName(channel)) {
+      throw new Error('Invalid channel name');
+    }
+
+    if (!this.validateEventName(event)) {
+      throw new Error('Invalid event name');
+    }
+
+    const sanitizedData = this.sanitizeData(data);
+
     try {
-      if (!this.validateChannelName(channel)) {
-        throw new Error(`Invalid channel name: ${channel}`);
-      }
-
-      if (!this.validateEventName(event)) {
-        throw new Error(`Invalid event name: ${event}`);
-      }
-
-      const sanitizedData = this.sanitizeData(data);
-
-      if (!pusherServer) {
-        throw new Error('PusherServer is not available (client-side)');
-      }
-
       await pusherServer.trigger(channel, event, sanitizedData);
-      
-      console.log(`Pusher event triggered: ${channel}:${event}`);
-    } catch (error) {
-      console.error('Failed to trigger Pusher event:', {
-        channel,
-        event,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    } catch (error: unknown) {
+      console.error('Failed to trigger Pusher event:', error);
       throw error;
     }
   }
 
-  // Subscribe to channel with error handling
+  // Subscribe to channel with event handlers
   static subscribeToChannel(
     pusherClient: PusherClient,
     channelName: string,
-    eventHandlers: Record<string, (data: any) => void>
+    eventHandlers: Record<string, (data: unknown) => void>
   ): void {
-    try {
-      if (!this.validateChannelName(channelName)) {
-        throw new Error(`Invalid channel name: ${channelName}`);
+    if (!this.validateChannelName(channelName)) {
+      throw new Error('Invalid channel name');
+    }
+
+    const channel = pusherClient.subscribe(channelName);
+
+    for (const [event, handler] of Object.entries(eventHandlers)) {
+      if (this.validateEventName(event)) {
+        channel.bind(event, handler);
       }
-
-      const channel = pusherClient.subscribe(channelName);
-
-      // Bind event handlers
-      Object.entries(eventHandlers).forEach(([event, handler]) => {
-        if (this.validateEventName(event)) {
-          channel.bind(event, handler);
-        }
-      });
-
-      console.log(`Subscribed to channel: ${channelName}`);
-    } catch (error) {
-      console.error('Failed to subscribe to channel:', {
-        channelName,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw error;
     }
   }
 
