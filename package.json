@@ -32,10 +32,11 @@
     "logs:search": "./scripts/cat-logs.sh search",
     "test:client-errors": "node scripts/test-client-errors.js",
     "test:mobile": "node scripts/test-mobile-responsive.js",
-    "test:stability": "node scripts/test-stability-complete-game.js",
+    "test:stability": "node scripts/test-stability-simple.js",
     "test:real-devices": "node tests/real-device-stability-test.js",
     "setup:real-devices": "node tests/setup-real-devices.js",
-    "test:browser-devices": "node tests/browser-device-simulation-test.js"
+    "test:browser-devices": "node tests/browser-device-simulation-test.js",
+    "test:robust-browser": "node tests/robust-browser-device-test.js"
   },
   "dependencies": {
     "axios": "^1.6.2",

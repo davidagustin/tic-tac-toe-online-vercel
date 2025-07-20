@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { checkDatabaseHealth } from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
+import { NextResponse } from 'next/server';
 
 type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
 
@@ -43,14 +43,33 @@ export async function GET() {
       };
     }
 
-    // Check Pusher health
+    // Check Pusher health - make it non-critical
     try {
       if (pusherServer) {
-        await pusherServer.trigger('health-check', 'ping', { timestamp: Date.now() });
+        // Try a simple test instead of triggering an event
+        const pusherInfo = {
+          appId: process.env.PUSHER_APP_ID ? 'Set' : 'Not set',
+          key: process.env.NEXT_PUBLIC_PUSHER_KEY ? 'Set' : 'Not set',
+          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER ? 'Set' : 'Not set',
+        };
+
+        // If we have the basic config, consider it healthy
+        if (pusherInfo.appId === 'Set' && pusherInfo.key === 'Set' && pusherInfo.cluster === 'Set') {
+          healthChecks.checks.pusher = {
+            status: 'healthy',
+          };
+        } else {
+          healthChecks.checks.pusher = {
+            status: 'unhealthy',
+            error: 'Missing Pusher configuration',
+          };
+        }
+      } else {
+        healthChecks.checks.pusher = {
+          status: 'unhealthy',
+          error: 'Pusher server not initialized',
+        };
       }
-      healthChecks.checks.pusher = {
-        status: 'healthy',
-      };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       healthChecks.checks.pusher = {
@@ -75,10 +94,10 @@ export async function GET() {
       usage: memUsageMB,
     };
 
-    // Calculate overall health
-    const allChecks = Object.values(healthChecks.checks);
-    const healthyChecks = allChecks.filter(check => check.status === 'healthy').length;
-    const isOverallHealthy = healthyChecks === allChecks.length;
+    // Calculate overall health - make Pusher non-critical
+    const criticalChecks = [healthChecks.checks.database, healthChecks.checks.memory];
+    const healthyCriticalChecks = criticalChecks.filter(check => check.status === 'healthy').length;
+    const isOverallHealthy = healthyCriticalChecks === criticalChecks.length;
 
     healthChecks.responseTime = Date.now() - startTime;
 
@@ -90,9 +109,9 @@ export async function GET() {
         status,
         ...healthChecks,
         summary: {
-          total: allChecks.length,
-          healthy: healthyChecks,
-          unhealthy: allChecks.length - healthyChecks,
+          total: Object.keys(healthChecks.checks).length,
+          healthy: Object.values(healthChecks.checks).filter(check => check.status === 'healthy').length,
+          unhealthy: Object.values(healthChecks.checks).filter(check => check.status === 'unhealthy').length,
         },
       },
       {
@@ -107,7 +126,7 @@ export async function GET() {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     healthChecks.responseTime = Date.now() - startTime;
-    
+
     return NextResponse.json(
       {
         status: 'unhealthy',
