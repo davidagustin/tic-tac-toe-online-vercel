@@ -1,19 +1,26 @@
-import PusherClient from 'pusher-js';
+import PusherClient, { Channel } from 'pusher-js';
 
 // Client-side Pusher instance - will be initialized with config from server
 let pusherClient: PusherClient | null = null;
 
-// Simplified Pusher client configuration (matching Stack Overflow working example)
+// Enhanced Pusher client configuration for stability
 const getPusherClientConfig = (key: string, cluster: string) => ({
   cluster,
   forceTLS: true,
-  // Remove auth endpoint since we're not using private channels
-  // authEndpoint: '/api/pusher/auth', // Removed
-  // auth: {
-  //   headers: {
-  //     'Content-Type': 'application/json',
-  //   },
-  // }, // Removed
+  // Enhanced connection settings
+  activityTimeout: 30000,        // 30 seconds
+  pongTimeout: 15000,            // 15 seconds (50% of activityTimeout)
+  maxReconnectionAttempts: 5,    // Increased from default 3
+  maxReconnectGap: 30000,        // 30 seconds max gap
+  enableStats: false,            // Disable stats to reduce overhead
+  enableLogging: false,          // Disable logging in production
+  // Connection optimization
+  authEndpoint: '/api/pusher/auth',
+  auth: {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  },
 });
 
 // Function to initialize Pusher client with config from server
@@ -33,7 +40,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
         'Cache-Control': 'no-cache',
       },
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
@@ -41,26 +48,26 @@ export async function initializePusherClient(): Promise<PusherClient> {
     }
 
     const config = await response.json();
-    
+
     if (!config.key || !config.cluster) {
       throw new Error('Pusher configuration not available');
     }
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
-    
+
     pusherClient = new PusherClient(config.key, clientConfig);
 
     // Set up connection event handlers with essential logging
     pusherClient.connection.bind('connecting', () => {
-      // Connection attempt started
+      console.log('Pusher client: Connecting...');
     });
 
     pusherClient.connection.bind('connected', () => {
-      // Connection successful
+      console.log('Pusher client: Connected successfully');
     });
 
     pusherClient.connection.bind('disconnected', () => {
-      // Connection lost
+      console.log('Pusher client: Disconnected');
     });
 
     pusherClient.connection.bind('error', (error: unknown) => {
@@ -77,30 +84,17 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     // Add reconnection event handlers
     pusherClient.connection.bind('reconnecting', () => {
-      // Reconnecting
+      console.log('Pusher client: Reconnecting...');
     });
 
     pusherClient.connection.bind('reconnected', () => {
-      // Reconnected successfully
+      console.log('Pusher client: Reconnected successfully');
     });
 
     return pusherClient;
   } catch (error) {
     console.error('Failed to initialize Pusher client:', error);
     throw error;
-  }
-}
-
-// Get existing Pusher client instance
-export function getPusherClient(): PusherClient | null {
-  return pusherClient;
-}
-
-// Cleanup function
-export function cleanupPusherClient(): void {
-  if (pusherClient) {
-    pusherClient.disconnect();
-    pusherClient = null;
   }
 }
 
@@ -136,59 +130,72 @@ export const EVENTS = {
   GAME_STARTED: 'game-started',
   GAME_ENDED: 'game-ended',
   GAME_DELETED: 'game-deleted',
-  
+
   // Player events
   PLAYER_JOINED: 'player-joined',
   PLAYER_LEFT: 'player-left',
   PLAYER_MOVED: 'player-moved',
-  
+
   // Chat events
   CHAT_MESSAGE: 'chat-message',
-  
+
   // Statistics events
   STATS_UPDATED: 'stats-updated',
-  
+
   // System events
   ERROR: 'error',
   CONNECTION_STATUS: 'connection-status',
   HEARTBEAT: 'heartbeat',
 };
 
-// Type definitions for better type safety
+// Types
 export interface Game {
   id: string;
   name: string;
-  status: 'waiting' | 'playing' | 'finished';
   players: string[];
-  currentPlayer?: 'X' | 'O';
-  board: string[];
-  winner?: string;
+  status: 'waiting' | 'playing' | 'finished';
   createdBy: string;
   createdAt: string;
-  updatedAt: string;
-}
-
-export interface Player {
-  id: string;
-  name: string;
-  symbol: 'X' | 'O';
-  isOnline: boolean;
-  lastSeen: string;
+  board: (string | null)[];
+  currentPlayer: string | null;
+  winner: string | null;
 }
 
 export interface ChatMessage {
   id: string;
   text: string;
   userName: string;
+  gameId: string;
   timestamp: string;
-  gameId?: string;
 }
 
 export interface PlayerStats {
-  userName: string;
   wins: number;
   losses: number;
   draws: number;
   totalGames: number;
-  winRate: number;
+}
+
+// Channel management utilities
+const channelCache = new Map<string, Channel>();
+
+export function subscribeToChannel(pusher: PusherClient, channelName: string) {
+  if (channelCache.has(channelName)) {
+    return channelCache.get(channelName)!;
+  }
+
+  const channel = pusher.subscribe(channelName);
+  channelCache.set(channelName, channel);
+  return channel;
+}
+
+export function unsubscribeFromChannel(pusher: PusherClient, channelName: string) {
+  if (channelCache.has(channelName)) {
+    pusher.unsubscribe(channelName);
+    channelCache.delete(channelName);
+  }
+}
+
+export function clearChannelCache() {
+  channelCache.clear();
 } 

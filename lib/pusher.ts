@@ -38,39 +38,39 @@ const createPusherServer = () => {
   if (typeof window !== 'undefined') {
     throw new Error('PusherServer can only be created on the server-side');
   }
-  
+
   const serverEnv = validateEnvironment();
-  
+
   // Validate required environment variables
   if (!serverEnv.PUSHER_APP_ID) {
     console.error('PUSHER_APP_ID is not set');
     return null;
   }
-  
+
   if (!serverEnv.PUSHER_KEY) {
     console.error('PUSHER_KEY is not set');
     return null;
   }
-  
+
   if (!serverEnv.PUSHER_SECRET) {
     console.error('PUSHER_SECRET is not set');
     return null;
   }
-  
+
   if (!serverEnv.PUSHER_CLUSTER) {
     console.error('PUSHER_CLUSTER is not set');
     return null;
   }
-  
+
   console.log('Creating Pusher server with simplified config:', {
     appId: serverEnv.PUSHER_APP_ID ? 'Set' : 'Not set',
     key: serverEnv.PUSHER_KEY ? `${serverEnv.PUSHER_KEY.substring(0, 8)}...` : 'Not set',
     cluster: serverEnv.PUSHER_CLUSTER,
     secret: serverEnv.PUSHER_SECRET ? `${serverEnv.PUSHER_SECRET.substring(0, 8)}...` : 'Not set',
   });
-  
+
   try {
-    // Use the exact same configuration as the working example
+    // Enhanced server configuration for stability
     return new PusherServer({
       appId: serverEnv.PUSHER_APP_ID!,
       key: serverEnv.PUSHER_KEY!,
@@ -119,7 +119,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
         'Cache-Control': 'no-cache',
       },
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
@@ -127,25 +127,25 @@ export async function initializePusherClient(): Promise<PusherClient> {
     }
 
     const config = await response.json();
-    
+
     console.log('Fetched Pusher config from server:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,
     });
-    
+
     if (!config.key || !config.cluster) {
       throw new Error('Pusher configuration not available');
     }
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
-    
+
     console.log('Creating Pusher client with simplified config:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       forceTLS: clientConfig.forceTLS,
     });
-    
+
     pusherClient = new PusherClient(config.key, clientConfig);
 
     // Set up connection event handlers with detailed logging
@@ -244,18 +244,18 @@ export const EVENTS = {
   GAME_STARTED: 'game-started',
   GAME_ENDED: 'game-ended',
   GAME_DELETED: 'game-deleted',
-  
+
   // Player events
   PLAYER_JOINED: 'player-joined',
   PLAYER_LEFT: 'player-left',
   PLAYER_MOVED: 'player-moved',
-  
+
   // Chat events
   CHAT_MESSAGE: 'chat-message',
-  
+
   // Statistics events
   STATS_UPDATED: 'stats-updated',
-  
+
   // System events
   ERROR: 'error',
   CONNECTION_STATUS: 'connection-status',

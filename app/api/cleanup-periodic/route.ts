@@ -1,9 +1,18 @@
-import { cleanupInactiveUsers, cleanupOldGames } from '@/lib/game-storage';
-import { pusherServer } from '@/lib/pusher';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(_request: NextRequest) {
   try {
+    // Temporarily disabled to prevent API spam
+    console.log('🧹 Periodic cleanup temporarily disabled to prevent disconnections');
+
+    return NextResponse.json({
+      success: true,
+      message: 'Periodic cleanup temporarily disabled',
+      timestamp: new Date().toISOString()
+    });
+
+    /* 
+    // Original cleanup code - disabled for now
     console.log('🧹 Starting periodic cleanup...');
 
     // Clean up old games
@@ -31,6 +40,7 @@ export async function POST(_request: NextRequest) {
       message: 'Periodic cleanup completed',
       timestamp: new Date().toISOString()
     });
+    */
   } catch (error) {
     console.error('❌ Error during periodic cleanup:', error);
     return NextResponse.json({
@@ -42,7 +52,7 @@ export async function POST(_request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Periodic cleanup endpoint is working',
+    message: 'Periodic cleanup endpoint is working (temporarily disabled)',
     timestamp: new Date().toISOString()
   });
 } 
