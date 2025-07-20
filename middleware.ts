@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Security headers configuration
 const securityHeaders = {
@@ -33,15 +33,15 @@ const RATE_LIMIT_CONFIG = {
 };
 
 function getClientIP(request: NextRequest): string {
-  return request.headers.get('x-forwarded-for') || 
-         request.headers.get('x-real-ip') || 
-         'unknown';
+  return request.headers.get('x-forwarded-for') ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
 }
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const current = rateLimitStore.get(ip);
-  
+
   if (!current || current.resetTime < now) {
     rateLimitStore.set(ip, {
       count: 1,
@@ -61,7 +61,7 @@ function checkRateLimit(ip: string): boolean {
 function isSuspiciousRequest(request: NextRequest): boolean {
   const userAgent = request.headers.get('user-agent') || '';
   const url = request.url;
-  
+
   // Check for common attack patterns
   const suspiciousPatterns = [
     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
@@ -129,14 +129,14 @@ export function middleware(request: NextRequest) {
 
   // Check for suspicious requests
   if (isSuspiciousRequest(request)) {
-    logSecurityEvent('SUSPICIOUS_REQUEST', { 
+    logSecurityEvent('SUSPICIOUS_REQUEST', {
       reason: 'Pattern matching detected suspicious content',
-      url: request.url 
+      url: request.url
     });
-    return new NextResponse(JSON.stringify({ 
+    return new NextResponse(JSON.stringify({
       error: 'Forbidden',
       message: 'Access denied due to security policy.'
-    }), { 
+    }), {
       status: 403,
       headers: {
         'Content-Type': 'application/json'
@@ -147,11 +147,11 @@ export function middleware(request: NextRequest) {
   // Rate limiting
   if (!checkRateLimit(ip)) {
     logSecurityEvent('RATE_LIMIT_EXCEEDED', { ip });
-    return new NextResponse(JSON.stringify({ 
+    return new NextResponse(JSON.stringify({
       error: 'Too Many Requests',
       message: 'Rate limit exceeded. Please try again later.',
       retryAfter: 60
-    }), { 
+    }), {
       status: 429,
       headers: {
         'Content-Type': 'application/json',
@@ -214,6 +214,8 @@ export function middleware(request: NextRequest) {
     '/api/events',
     '/api/websocket',
     '/api/health-check',
+    '/api/ably-config',
+    '/api/test-ably',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)
@@ -233,10 +235,10 @@ export function middleware(request: NextRequest) {
   for (const path of sensitivePaths) {
     if (url.startsWith(path)) {
       logSecurityEvent('SENSITIVE_PATH_ACCESS', { path });
-      return new NextResponse(JSON.stringify({ 
+      return new NextResponse(JSON.stringify({
         error: 'Not Found',
         message: 'The requested resource was not found.'
-      }), { 
+      }), {
         status: 404,
         headers: {
           'Content-Type': 'application/json'
@@ -248,10 +250,10 @@ export function middleware(request: NextRequest) {
   // Block other API paths except allowed ones
   if (url.startsWith('/api/') && !isAllowedApiPath) {
     logSecurityEvent('SENSITIVE_PATH_ACCESS', { path: '/api/' });
-    return new NextResponse(JSON.stringify({ 
+    return new NextResponse(JSON.stringify({
       error: 'Not Found',
       message: 'The requested resource was not found.'
-    }), { 
+    }), {
       status: 404,
       headers: {
         'Content-Type': 'application/json'
