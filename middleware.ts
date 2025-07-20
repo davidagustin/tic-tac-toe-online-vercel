@@ -9,7 +9,7 @@ const securityHeaders = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
-    "connect-src 'self' ws: wss: https://*.pusherapp.com https://*.pusher.com https://*.pusher.com:443",
+    "connect-src 'self' ws: wss:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
@@ -23,13 +23,13 @@ const securityHeaders = {
   'Cache-Control': 'no-store, max-age=0',
 };
 
-// Rate limiting store (in production, use Redis)
+// Rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
   WINDOW_MS: 60000, // 1 minute
-  MAX_REQUESTS: process.env.NODE_ENV === 'development' ? 200 : 30, // Reduced from 1000/100 to 200/30
+  MAX_REQUESTS: process.env.NODE_ENV === 'development' ? 200 : 30,
 };
 
 function getClientIP(request: NextRequest): string {
@@ -58,95 +58,12 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-function isSuspiciousRequest(request: NextRequest): boolean {
-  const userAgent = request.headers.get('user-agent') || '';
-  const url = request.url;
-
-  // Check for common attack patterns
-  const suspiciousPatterns = [
-    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-    /javascript:/gi,
-    /on\w+\s*=/gi,
-    /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
-    /union\s+select/gi,
-    /drop\s+table/gi,
-    /insert\s+into/gi,
-    /delete\s+from/gi,
-    /update\s+set/gi,
-    /exec\s*\(/gi,
-    /eval\s*\(/gi,
-    /document\.cookie/gi,
-    /window\.location/gi,
-  ];
-
-  // Check URL for suspicious patterns
-  for (const pattern of suspiciousPatterns) {
-    if (pattern.test(url)) {
-      return true;
-    }
-  }
-
-  // Check User-Agent for suspicious patterns
-  const suspiciousUserAgents = [
-    /sqlmap/gi,
-    /nikto/gi,
-    /nmap/gi,
-    /w3af/gi,
-    /burp/gi,
-    /zap/gi,
-    /scanner/gi,
-    /crawler/gi,
-    /bot/gi,
-  ];
-
-  for (const pattern of suspiciousUserAgents) {
-    if (pattern.test(userAgent)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export function middleware(request: NextRequest) {
   const ip = getClientIP(request);
   const url = request.nextUrl.pathname;
 
-  // Log security events
-  const logSecurityEvent = (event: string, details: any) => {
-    const timestamp = new Date().toISOString();
-    console.warn('SECURITY EVENT:', JSON.stringify({
-      timestamp,
-      event,
-      details,
-      ip,
-      userAgent: request.headers.get('user-agent'),
-      url: request.url,
-      method: request.method,
-      environment: process.env.NODE_ENV || 'development'
-    }));
-  };
-
-  // Check for suspicious requests
-  if (isSuspiciousRequest(request)) {
-    logSecurityEvent('SUSPICIOUS_REQUEST', {
-      reason: 'Pattern matching detected suspicious content',
-      url: request.url
-    });
-    return new NextResponse(JSON.stringify({
-      error: 'Forbidden',
-      message: 'Access denied due to security policy.'
-    }), {
-      status: 403,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-  }
-
   // Rate limiting
   if (!checkRateLimit(ip)) {
-    logSecurityEvent('RATE_LIMIT_EXCEEDED', { ip });
     return new NextResponse(JSON.stringify({
       error: 'Too Many Requests',
       message: 'Rate limit exceeded. Please try again later.',
@@ -188,11 +105,11 @@ export function middleware(request: NextRequest) {
   // Check if this is an allowed static path
   const isAllowedStaticPath = allowedStaticPaths.some(allowedPath => url.startsWith(allowedPath));
 
-  // Allow authentication and game API endpoints
+  // Allow tRPC and essential API endpoints
   const allowedApiPaths = [
+    '/api/trpc',
     '/api/auth/login',
     '/api/auth/register',
-    '/api/mvp',
     '/api/game/list',
     '/api/game/create',
     '/api/game/join',
@@ -200,22 +117,6 @@ export function middleware(request: NextRequest) {
     '/api/games',
     '/api/chat',
     '/api/stats',
-    '/api/clear-auth',
-    '/api/clear-db',
-    '/api/cleanup-periodic',
-    '/api/pusher/webhook',
-    '/api/test-pusher',
-    '/api/debug-env',
-    '/api/pusher-config',
-    '/api/test-pusher-connection',
-    '/api/check-pusher-app',
-    '/api/test-database',
-    '/api/test-game-flow',
-    '/api/events',
-    '/api/websocket',
-    '/api/health-check',
-    '/api/ably-config',
-    '/api/test-ably',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)
@@ -224,6 +125,7 @@ export function middleware(request: NextRequest) {
     // Handle dynamic routes
     if (allowedPath === '/api/stats' && url.startsWith('/api/stats/')) return true;
     if (allowedPath === '/api/games' && url.startsWith('/api/games/')) return true;
+    if (allowedPath === '/api/trpc' && url.startsWith('/api/trpc/')) return true;
     return false;
   });
 
@@ -234,7 +136,6 @@ export function middleware(request: NextRequest) {
 
   for (const path of sensitivePaths) {
     if (url.startsWith(path)) {
-      logSecurityEvent('SENSITIVE_PATH_ACCESS', { path });
       return new NextResponse(JSON.stringify({
         error: 'Not Found',
         message: 'The requested resource was not found.'
@@ -249,7 +150,6 @@ export function middleware(request: NextRequest) {
 
   // Block other API paths except allowed ones
   if (url.startsWith('/api/') && !isAllowedApiPath) {
-    logSecurityEvent('SENSITIVE_PATH_ACCESS', { path: '/api/' });
     return new NextResponse(JSON.stringify({
       error: 'Not Found',
       message: 'The requested resource was not found.'
@@ -280,11 +180,6 @@ export function middleware(request: NextRequest) {
   // Add request ID for tracking
   const requestId = crypto.randomUUID();
   response.headers.set('X-Request-ID', requestId);
-
-  // Log successful requests in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[${requestId}] ${request.method} ${url} - ${ip}`);
-  }
 
   return response;
 }

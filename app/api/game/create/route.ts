@@ -1,64 +1,63 @@
-import { games, setGame } from '@/lib/game-storage';
-import { pusherServer } from '@/lib/pusher';
 import { NextRequest, NextResponse } from 'next/server';
+import { games, broadcastGameEvent, type GameState } from '@/lib/trpc';
 
-// POST /api/game/create - Create a new game
 export async function POST(request: NextRequest) {
-  console.log('🎮 Game Creation API: Starting game creation process...');
-
   try {
     const body = await request.json();
-    console.log('🎮 Game Creation API: Request body:', body);
-
     const { gameName, userName } = body;
 
     if (!gameName || !userName) {
-      console.log('❌ Game Creation API: Missing required fields - gameName:', gameName, 'userName:', userName);
       return NextResponse.json({ error: 'Game name and user name are required' }, { status: 400 });
     }
 
-    console.log('✅ Game Creation API: Valid request - gameName:', gameName, 'userName:', userName);
+    const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    const gameId = Date.now().toString();
-    console.log('🎮 Game Creation API: Generated gameId:', gameId);
-
-    const newGame = {
+    const game: GameState = {
       id: gameId,
       name: gameName,
+      board: ['', '', '', '', '', '', '', '', ''],
+      currentPlayer: userName,
       players: [userName],
-      status: 'waiting' as const,
-      createdBy: userName,
+      status: 'waiting',
       createdAt: new Date(),
-      board: Array(9).fill(null),
-      currentPlayer: null,
-      winner: null
     };
 
-    console.log('🎮 Game Creation API: Created game object:', JSON.stringify(newGame, null, 2));
+    games.set(gameId, game);
 
-    await setGame(gameId, newGame);
-    console.log('✅ Game Creation API: Game stored in database. Total games in memory cache:', games.size);
+    // Broadcast game created event
+    broadcastGameEvent(gameId, {
+      type: 'gameCreated',
+      gameId,
+      data: {
+        game: {
+          id: game.id,
+          name: game.name,
+          board: game.board,
+          currentPlayer: game.currentPlayer,
+          players: game.players,
+          status: game.status,
+          createdAt: game.createdAt,
+        },
+        creator: userName,
+      },
+      timestamp: Date.now(),
+      userId: userName,
+    });
 
-    // Broadcast game creation to Pusher
-    console.log('📡 Game Creation API: Attempting to broadcast to Pusher...');
-    console.log('📡 Game Creation API: pusherServer available:', !!pusherServer);
-
-    if (pusherServer) {
-      console.log('📡 Game Creation API: Triggering Pusher event...');
-      try {
-        await pusherServer.trigger('lobby', 'game-created', { game: newGame });
-        console.log('✅ Game Creation API: Pusher event triggered successfully');
-      } catch (pusherError) {
-        console.error('❌ Game Creation API: Pusher trigger failed:', pusherError);
-      }
-    } else {
-      console.log('⚠️ Game Creation API: Pusher server not available');
-    }
-
-    console.log('✅ Game Creation API: Returning game response');
-    return NextResponse.json({ game: newGame });
+    return NextResponse.json({
+      success: true,
+      game: {
+        id: game.id,
+        name: game.name,
+        board: game.board,
+        currentPlayer: game.currentPlayer,
+        players: game.players,
+        status: game.status,
+        createdAt: game.createdAt,
+      },
+    });
   } catch (error) {
-    console.error('❌ Game Creation API: Error creating game:', error);
+    console.error('Game create error:', error);
     return NextResponse.json({ error: 'Failed to create game' }, { status: 500 });
   }
 } 

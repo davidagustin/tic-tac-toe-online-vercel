@@ -1,13 +1,15 @@
-import { getGame, setGame } from '@/lib/game-storage';
-import { CHANNELS, EVENTS, pusherServer } from '@/lib/pusher';
 import { NextRequest, NextResponse } from 'next/server';
+import { games, broadcastGameEvent } from '@/lib/trpc';
 
-// Check for winner
-function checkWinner(board: (string | null)[]): string | null {
+// In-memory storage for game statistics
+const userStats = new Map<string, { wins: number; losses: number; draws: number }>();
+
+// Helper function to check for winner
+function checkWinner(board: string[]): string | null {
   const lines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-    [0, 4, 8], [2, 4, 6] // diagonals
+    [0, 4, 8], [2, 4, 6], // diagonals
   ];
 
   for (const [a, b, c] of lines) {
@@ -16,128 +18,130 @@ function checkWinner(board: (string | null)[]): string | null {
     }
   }
 
-  // Check for draw
-  if (board.every(cell => cell !== null)) {
-    return 'draw';
-  }
-
   return null;
+}
+
+// Helper function to update user statistics
+function updateUserStats(username: string, result: 'win' | 'loss' | 'draw') {
+  if (!userStats.has(username)) {
+    userStats.set(username, { wins: 0, losses: 0, draws: 0 });
+  }
+  
+  const stats = userStats.get(username)!;
+  stats[result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws']++;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { gameId, index, player, userName, position } = await request.json();
+    const body = await request.json();
+    const { gameId, position, userName } = body;
 
-    if (gameId === undefined || index === undefined || !player) {
-      return NextResponse.json(
-        { error: 'Game ID, index, and player are required' },
-        { status: 400 }
-      );
+    if (!gameId || position === undefined || !userName) {
+      return NextResponse.json({ error: 'Game ID, position, and user name are required' }, { status: 400 });
     }
 
-    const game = await getGame(gameId);
+    const game = games.get(gameId);
+
     if (!game) {
-      return NextResponse.json(
-        { error: 'Game not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
     if (game.status !== 'playing') {
-      return NextResponse.json(
-        { error: 'Game is not in playing state' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Game is not active' }, { status: 400 });
     }
 
-    if (game.currentPlayer !== player) {
-      return NextResponse.json(
-        { error: 'Not your turn' },
-        { status: 400 }
-      );
+    if (!game.players.includes(userName)) {
+      return NextResponse.json({ error: 'Not a player in this game' }, { status: 400 });
     }
 
-    if (index < 0 || index > 8) {
-      return NextResponse.json(
-        { error: 'Invalid move index' },
-        { status: 400 }
-      );
+    if (game.currentPlayer !== userName) {
+      return NextResponse.json({ error: 'Not your turn' }, { status: 400 });
     }
 
-    if (game.board[index] !== null) {
-      return NextResponse.json(
-        { error: 'Position already taken' },
-        { status: 400 }
-      );
+    if (game.board[position] !== '') {
+      return NextResponse.json({ error: 'Position already taken' }, { status: 400 });
     }
 
     // Make the move
-    game.board[index] = player;
+    const symbol = game.players.indexOf(userName) === 0 ? 'X' : 'O';
+    game.board[position] = symbol;
+    game.lastMove = {
+      position,
+      symbol,
+      player: userName,
+    };
 
     // Check for winner
     const winner = checkWinner(game.board);
     if (winner) {
       game.status = 'finished';
-      game.winner = winner === 'draw' ? null : winner;
-      game.currentPlayer = null;
+      game.winner = userName;
+      
+      // Update statistics
+      updateUserStats(userName, 'win');
+      const otherPlayer = game.players.find(p => p !== userName);
+      if (otherPlayer) {
+        updateUserStats(otherPlayer, 'loss');
+      }
+    } else if (game.board.every(cell => cell !== '')) {
+      game.status = 'finished';
+      game.winner = 'tie';
+      
+      // Update statistics for both players
+      game.players.forEach(player => {
+        updateUserStats(player, 'draw');
+      });
     } else {
       // Switch turns
-      game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
+      game.currentPlayer = game.players.find(p => p !== game.currentPlayer) || game.currentPlayer;
     }
 
-    // Update game in storage
-    await setGame(gameId, game);
+    // Broadcast move made event
+    broadcastGameEvent(gameId, {
+      type: 'moveMade',
+      gameId,
+      data: {
+        position,
+        symbol,
+        board: game.board,
+        currentPlayer: game.currentPlayer,
+        status: game.status,
+        winner: game.winner,
+        lastMove: game.lastMove,
+      },
+      timestamp: Date.now(),
+      userId: userName,
+    });
 
-    // Trigger Pusher events
-    if (pusherServer) {
-      console.log('🎮 Move API: Triggering Pusher events...');
-      console.log('🎮 Move API: Game state after move:', JSON.stringify(game, null, 2));
-      console.log('🎮 Move API: Current player after move:', game.currentPlayer);
-
-      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, {
-        game,
-      });
-      console.log('✅ Move API: Lobby event triggered');
-
-      await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, {
-        game,
-        move: { index, player },
-      });
-      console.log('✅ Move API: Player moved event triggered');
-
-      if (winner) {
-        await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, {
-          game,
+    // If game is finished, broadcast game finished event
+    if (game.status === 'finished') {
+      broadcastGameEvent(gameId, {
+        type: 'gameFinished',
+        gameId,
+        data: {
           winner: game.winner,
-        });
-        console.log('✅ Move API: Game ended event triggered');
-
-        // Update statistics for both players
-        if (game.winner) {
-          // In a real app, you'd update database statistics here
-          console.log(`Game ended. Winner: ${game.winner}`);
-        } else {
-          console.log('Game ended in a draw');
-        }
-      }
-    } else {
-      console.error('❌ Move API: Pusher server not available');
+          board: game.board,
+          players: game.players,
+          finalMove: game.lastMove,
+        },
+        timestamp: Date.now(),
+        userId: userName,
+      });
     }
-
-    console.log('Move made:', { gameId, index, player, winner });
 
     return NextResponse.json({
       success: true,
-      game,
-      winner,
-      message: 'Move made successfully'
+      game: {
+        id: game.id,
+        board: game.board,
+        currentPlayer: game.currentPlayer,
+        status: game.status,
+        winner: game.winner,
+        lastMove: game.lastMove,
+      },
     });
-
   } catch (error) {
-    console.error('Error making move:', error);
-    return NextResponse.json(
-      { error: 'Failed to make move' },
-      { status: 500 }
-    );
+    console.error('Game move error:', error);
+    return NextResponse.json({ error: 'Failed to make move' }, { status: 500 });
   }
 } 

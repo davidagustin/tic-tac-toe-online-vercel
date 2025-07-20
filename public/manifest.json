@@ -1,0 +1,16 @@
+{
+  "name": "Tic-Tac-Toe Online",
+  "short_name": "TicTacToe",
+  "description": "Real-time multiplayer Tic-Tac-Toe game",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#6b46c1",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+} 
