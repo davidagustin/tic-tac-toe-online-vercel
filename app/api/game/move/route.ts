@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
 import { getGame, setGame } from '@/lib/game-storage';
+import { CHANNELS, EVENTS, pusherServer } from '@/lib/pusher';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Check for winner
 function checkWinner(board: (string | null)[]): string | null {
@@ -26,7 +26,7 @@ function checkWinner(board: (string | null)[]): string | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const { gameId, index, player } = await request.json();
+    const { gameId, index, player, userName, position } = await request.json();
 
     if (gameId === undefined || index === undefined || !player) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId);
+    const game = await getGame(gameId);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -86,14 +86,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Update game in storage
-    setGame(gameId, game);
+    await setGame(gameId, game);
 
     // Trigger Pusher events
     if (pusherServer) {
       console.log('🎮 Move API: Triggering Pusher events...');
       console.log('🎮 Move API: Game state after move:', JSON.stringify(game, null, 2));
       console.log('🎮 Move API: Current player after move:', game.currentPlayer);
-      
+
       await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, {
         game,
       });
@@ -126,11 +126,11 @@ export async function POST(request: NextRequest) {
 
     console.log('Move made:', { gameId, index, player, winner });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       game,
       winner,
-      message: 'Move made successfully' 
+      message: 'Move made successfully'
     });
 
   } catch (error) {

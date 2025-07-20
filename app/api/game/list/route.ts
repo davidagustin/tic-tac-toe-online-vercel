@@ -1,13 +1,14 @@
-import { NextResponse } from 'next/server';
 import { getAllGames } from '@/lib/game-storage';
+import { NextResponse } from 'next/server';
 
-// GET /api/game/list - Get all games
 export async function GET() {
   try {
-    const gamesList = getAllGames();
-    return NextResponse.json(gamesList);
+    console.log('📋 Game List API: Getting all games...');
+    const games = await getAllGames();
+    console.log(`✅ Game List API: Retrieved ${games.length} games`);
+    return NextResponse.json(games);
   } catch (error) {
-    console.error('Error getting games:', error);
+    console.error('❌ Game List API: Error getting games:', error);
     return NextResponse.json({ error: 'Failed to get games' }, { status: 500 });
   }
 } 

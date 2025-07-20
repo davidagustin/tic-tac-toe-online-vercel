@@ -1,17 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { pusherServer } from '@/lib/pusher';
 import { games, setGame } from '@/lib/game-storage';
+import { pusherServer } from '@/lib/pusher';
+import { NextRequest, NextResponse } from 'next/server';
 
 // POST /api/game/create - Create a new game
 export async function POST(request: NextRequest) {
   console.log('🎮 Game Creation API: Starting game creation process...');
-  
+
   try {
     const body = await request.json();
     console.log('🎮 Game Creation API: Request body:', body);
-    
+
     const { gameName, userName } = body;
-    
+
     if (!gameName || !userName) {
       console.log('❌ Game Creation API: Missing required fields - gameName:', gameName, 'userName:', userName);
       return NextResponse.json({ error: 'Game name and user name are required' }, { status: 400 });
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     const gameId = Date.now().toString();
     console.log('🎮 Game Creation API: Generated gameId:', gameId);
-    
+
     const newGame = {
       id: gameId,
       name: gameName,
@@ -36,13 +36,13 @@ export async function POST(request: NextRequest) {
 
     console.log('🎮 Game Creation API: Created game object:', JSON.stringify(newGame, null, 2));
 
-    setGame(gameId, newGame);
-    console.log('✅ Game Creation API: Game stored in memory. Total games:', games.size);
+    await setGame(gameId, newGame);
+    console.log('✅ Game Creation API: Game stored in database. Total games in memory cache:', games.size);
 
     // Broadcast game creation to Pusher
     console.log('📡 Game Creation API: Attempting to broadcast to Pusher...');
     console.log('📡 Game Creation API: pusherServer available:', !!pusherServer);
-    
+
     if (pusherServer) {
       console.log('📡 Game Creation API: Triggering Pusher event...');
       try {
