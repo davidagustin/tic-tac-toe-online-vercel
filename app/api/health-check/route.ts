@@ -1,146 +1,94 @@
+import { ablyServer } from '@/lib/ably';
 import { checkDatabaseHealth } from '@/lib/db';
-import { pusherServer } from '@/lib/pusher';
 import { NextResponse } from 'next/server';
-
-type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
-
-interface HealthCheck {
-  status: HealthStatus;
-  latency?: number;
-  error?: string;
-  usage?: Record<string, number>;
-}
 
 export async function GET() {
   const startTime = Date.now();
-  const healthChecks = {
+  const health = {
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0',
     checks: {
-      database: { status: 'unknown' as HealthStatus } as HealthCheck,
-      pusher: { status: 'unknown' as HealthStatus } as HealthCheck,
-      memory: { status: 'unknown' as HealthStatus } as HealthCheck,
+      database: { status: 'unknown', responseTime: 0 },
+      ably: { status: 'unknown', responseTime: 0 },
+      memory: { status: 'unknown', usage: 0 },
     },
     responseTime: 0,
   };
 
   try {
-    // Check database health
+    // Database health check
+    const dbStart = Date.now();
     try {
-      const dbHealth = await checkDatabaseHealth();
-      healthChecks.checks.database = {
-        status: dbHealth.status,
-        latency: dbHealth.latency,
-        error: dbHealth.error,
+      const result = await checkDatabaseHealth();
+      const dbTime = Date.now() - dbStart;
+      health.checks.database = {
+        status: result.status,
+        responseTime: dbTime,
       };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      healthChecks.checks.database = {
+    } catch (error) {
+      console.error('Database health check failed:', error);
+      health.checks.database = {
         status: 'unhealthy',
-        error: errorMessage,
+        responseTime: Date.now() - dbStart,
       };
     }
 
-    // Check Pusher health - make it non-critical
+    // Ably health check (non-critical)
+    const ablyStart = Date.now();
     try {
-      if (pusherServer) {
-        // Try a simple test instead of triggering an event
-        const pusherInfo = {
-          appId: process.env.PUSHER_APP_ID ? 'Set' : 'Not set',
-          key: process.env.NEXT_PUBLIC_PUSHER_KEY ? 'Set' : 'Not set',
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER ? 'Set' : 'Not set',
+      if (ablyServer) {
+        // Try to get a channel to test connection
+        const channel = ablyServer.channels.get('health-check');
+        const ablyTime = Date.now() - ablyStart;
+        health.checks.ably = {
+          status: 'healthy',
+          responseTime: ablyTime,
         };
-
-        // If we have the basic config, consider it healthy
-        if (pusherInfo.appId === 'Set' && pusherInfo.key === 'Set' && pusherInfo.cluster === 'Set') {
-          healthChecks.checks.pusher = {
-            status: 'healthy',
-          };
-        } else {
-          healthChecks.checks.pusher = {
-            status: 'unhealthy',
-            error: 'Missing Pusher configuration',
-          };
-        }
       } else {
-        healthChecks.checks.pusher = {
+        health.checks.ably = {
           status: 'unhealthy',
-          error: 'Pusher server not initialized',
+          responseTime: Date.now() - ablyStart,
         };
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      healthChecks.checks.pusher = {
+    } catch (error) {
+      console.error('Ably health check failed:', error);
+      health.checks.ably = {
         status: 'unhealthy',
-        error: errorMessage,
+        responseTime: Date.now() - ablyStart,
       };
     }
 
-    // Check memory usage
+    // Memory health check
     const memUsage = process.memoryUsage();
-    const memUsageMB = {
-      rss: Math.round(memUsage.rss / 1024 / 1024),
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-      external: Math.round(memUsage.external / 1024 / 1024),
-    };
-
-    // Consider memory healthy if heap used is less than 500MB
-    const isMemoryHealthy = memUsageMB.heapUsed < 500;
-    healthChecks.checks.memory = {
-      status: isMemoryHealthy ? 'healthy' : 'unhealthy',
+    const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    health.checks.memory = {
+      status: memUsageMB < 512 ? 'healthy' : 'warning', // Warning if over 512MB
       usage: memUsageMB,
     };
 
-    // Calculate overall health - make Pusher non-critical
-    const criticalChecks = [healthChecks.checks.database, healthChecks.checks.memory];
-    const healthyCriticalChecks = criticalChecks.filter(check => check.status === 'healthy').length;
-    const isOverallHealthy = healthyCriticalChecks === criticalChecks.length;
+    // Overall health determination
+    const criticalChecks = [health.checks.database];
+    const hasUnhealthyCritical = criticalChecks.some(check => check.status === 'unhealthy');
 
-    healthChecks.responseTime = Date.now() - startTime;
+    if (hasUnhealthyCritical) {
+      health.status = 'unhealthy';
+    } else if (health.checks.ably.status === 'unhealthy') {
+      // Ably failure doesn't make the entire system unhealthy
+      health.status = 'degraded';
+    }
 
-    const statusCode = isOverallHealthy ? 200 : 503;
-    const status = isOverallHealthy ? 'healthy' : 'unhealthy';
+    health.responseTime = Date.now() - startTime;
 
-    return NextResponse.json(
-      {
-        status,
-        ...healthChecks,
-        summary: {
-          total: Object.keys(healthChecks.checks).length,
-          healthy: Object.values(healthChecks.checks).filter(check => check.status === 'healthy').length,
-          unhealthy: Object.values(healthChecks.checks).filter(check => check.status === 'unhealthy').length,
-        },
-      },
-      {
-        status: statusCode,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-      }
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    healthChecks.responseTime = Date.now() - startTime;
+    const statusCode = health.status === 'healthy' ? 200 :
+      health.status === 'degraded' ? 200 : 503;
 
-    return NextResponse.json(
-      {
-        status: 'unhealthy',
-        error: errorMessage,
-        ...healthChecks,
-      },
-      {
-        status: 503,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-      }
-    );
+    return NextResponse.json(health, { status: statusCode });
+  } catch (error) {
+    console.error('Health check error:', error);
+    health.status = 'unhealthy';
+    health.responseTime = Date.now() - startTime;
+    return NextResponse.json(health, { status: 503 });
   }
 } 

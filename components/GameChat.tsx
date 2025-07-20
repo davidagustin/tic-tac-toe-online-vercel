@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { usePusher } from '@/hooks/usePusher';
-import type { ChatMessage } from '@/lib/pusher-client';
+import { useAbly } from '@/hooks/useAbly';
+import type { ChatMessage } from '@/lib/ably';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface GameChatProps {
   userName: string;
@@ -14,7 +14,7 @@ interface GameChatProps {
 }
 
 export default function GameChat({ userName, gameId, title, description, theme, icon }: GameChatProps) {
-  const { isConnected, chatMessages } = usePusher();
+  const { isConnected, chatMessages } = useAbly();
   const [text, setText] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -116,7 +116,7 @@ export default function GameChat({ userName, gameId, title, description, theme, 
       {/* Chat Messages */}
       <div className="space-y-4">
         <div className={`bg-gradient-to-br ${config.bgGradient} rounded-2xl p-4 border border-white/20`}>
-          <div 
+          <div
             ref={chatContainerRef}
             className="bg-white/10 backdrop-blur-lg rounded-xl p-4 h-80 sm:h-96 overflow-y-auto shadow-inner border border-white/20 scroll-smooth"
           >
@@ -180,11 +180,10 @@ export default function GameChat({ userName, gameId, title, description, theme, 
 
       {/* Connection Status */}
       <div className="text-center">
-        <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${
-          isConnected 
+        <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${isConnected
             ? 'bg-green-500/20 text-green-300 border border-green-400/30'
             : 'bg-red-500/20 text-red-300 border border-red-400/30'
-        }`}>
+          }`}>
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
           <span className="font-medium">
             {isConnected ? 'Connected to game chat' : 'Disconnected from game chat'}

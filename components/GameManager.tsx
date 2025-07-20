@@ -1,6 +1,6 @@
 'use client';
 
-import { usePusher } from '@/hooks/usePusher';
+import { useAbly } from '@/hooks/useAbly';
 import React, { useCallback, useEffect, useState } from 'react';
 
 interface Game {
@@ -21,7 +21,7 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, games: pusherGames, subscribeToLobby } = usePusher();
+  const { isConnected, games: pusherGames, subscribeToLobby } = useAbly();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');

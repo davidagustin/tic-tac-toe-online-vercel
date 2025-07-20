@@ -1,6 +1,6 @@
 'use client';
 
-import { usePusher } from '@/hooks/usePusher';
+import { useAbly } from '@/hooks/useAbly';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 
@@ -25,7 +25,7 @@ interface EditFormData {
 }
 
 export default function UserProfile({ userId, onProfileUpdate, onClose }: UserProfileProps) {
-    const { isConnected } = usePusher();
+    const { isConnected } = useAbly();
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

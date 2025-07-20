@@ -1,6 +1,6 @@
 'use client';
 
-import { usePusher } from '@/hooks/usePusher';
+import { useAbly } from '@/hooks/useAbly';
 import { useEffect, useState } from 'react';
 import ChatRoom from './ChatRoom';
 import GameManager from './GameManager';
@@ -19,7 +19,7 @@ interface LobbyProps {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { isConnected, playerStats, subscribeToUser } = usePusher();
+  const { isConnected, playerStats, subscribeToUser } = useAbly();
   const [view, setView] = useState<'games' | 'chat'>('games');
 
   // Subscribe to user stats when component mounts

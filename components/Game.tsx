@@ -1,6 +1,6 @@
 'use client';
 
-import { usePusher } from '@/hooks/usePusher';
+import { useAbly } from '@/hooks/useAbly';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface GameProps {
@@ -18,7 +18,7 @@ const INITIAL_BOARD: BoardState = [
 ];
 
 export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
-  const { isConnected, currentGame, joinGame, leaveGame } = usePusher();
+  const { isConnected, currentGame, joinGame, leaveGame } = useAbly();
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [gameMessage, setGameMessage] = useState<string>("");
   const [hasError, setHasError] = useState<boolean>(false);

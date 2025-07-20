@@ -2,7 +2,7 @@
 
 import Game from '@/components/Game';
 import Lobby from '@/components/Lobby';
-import { usePusher } from '@/hooks/usePusher';
+import { useAbly } from '@/hooks/useAbly';
 import React, { useEffect, useState } from 'react';
 
 // Client-only wrapper to prevent hydration issues
@@ -20,8 +20,8 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Error boundary component for safer Pusher usage
-class PusherErrorBoundary extends React.Component<
+// Error boundary component for safer Ably usage
+class AblyErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error?: Error }
 > {
@@ -31,12 +31,12 @@ class PusherErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError(error: Error) {
-    console.error('Pusher Error Boundary caught an error:', error);
+    console.error('Ably Error Boundary caught an error:', error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Pusher Error Boundary error details:', error, errorInfo);
+    console.error('Ably Error Boundary error details:', error, errorInfo);
   }
 
   render() {
@@ -53,17 +53,17 @@ class PusherErrorBoundary extends React.Component<
   }
 }
 
-// Safe Pusher hook with fallback
-function useSafePusher() {
+// Safe Ably hook with fallback
+function useSafeAbly() {
   try {
-    // Use the real Pusher hook
-    return usePusher();
+    // Use the real Ably hook
+    return useAbly();
   } catch (error) {
-    console.error('Pusher hook error:', error);
+    console.error('Ably hook error:', error);
 
     // Return fallback values
     return {
-      pusher: null,
+      ably: null,
       isConnected: false,
       isInitializing: false,
       connectionError: 'Connection failed',
@@ -98,8 +98,8 @@ export default function Home() {
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
 
-  // Use safe Pusher hook with error handling
-  const { isConnected, clearGames } = useSafePusher();
+  // Use safe Ably hook with error handling
+  const { isConnected, clearGames } = useSafeAbly();
 
   // Simplified cleanup for debugging  
   useEffect(() => {
@@ -410,7 +410,7 @@ export default function Home() {
 
             {/* Connection Status with Error Boundary */}
             <div className="mt-4 sm:mt-6 text-center">
-              <PusherErrorBoundary>
+              <AblyErrorBoundary>
                 <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs ${isConnected
                   ? 'bg-green-500/20 text-green-300 border border-green-400/30'
                   : 'bg-red-500/20 text-red-300 border border-red-400/30'
@@ -418,7 +418,7 @@ export default function Home() {
                   <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
                   <span>{isConnected ? 'Real-time connected' : 'Offline mode'}</span>
                 </div>
-              </PusherErrorBoundary>
+              </AblyErrorBoundary>
             </div>
           </div>
         </div>
