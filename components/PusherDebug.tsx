@@ -1,46 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-export function PusherDebug() {
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+interface PusherDebugProps {
+  isConnected: boolean;
+  isInitializing: boolean;
+  isUsingFallback: boolean;
+  lastError: string | null;
+}
 
-  useEffect(() => {
-    // Fetch config from server
-    const fetchConfig = async () => {
-      try {
-        const response = await fetch('/api/pusher-config');
-        const config = await response.json();
-        
-        setDebugInfo({
-          pusherKey: config.key ? 'Set' : 'Not set',
-          pusherCluster: config.cluster || 'Not set',
-          keyLength: config.key?.length || 0,
-          clusterLength: config.cluster?.length || 0,
-          actualKey: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        setDebugInfo({
-          error: 'Failed to fetch config',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    };
+export function PusherDebug({ isConnected, isInitializing, isUsingFallback, lastError }: PusherDebugProps) {
+  const [showDetails, setShowDetails] = useState(false);
 
-    fetchConfig();
-  }, []);
-
-  if (!debugInfo) return null;
+  const handleErrorClick = () => {
+    if (lastError) {
+      console.error('Pusher Debug Error Details:', lastError);
+      alert(`Error: ${lastError}`);
+    }
+  };
 
   // Only show in development
   if (process.env.NODE_ENV === 'development') {
     return (
       <div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg text-xs max-w-xs">
         <h3 className="font-bold mb-2">Pusher Debug Info</h3>
-        <pre className="whitespace-pre-wrap">
-          {JSON.stringify(debugInfo, null, 2)}
-        </pre>
+        <div className="space-y-1">
+          <div>Status: {isConnected ? '🟢 Connected' : isUsingFallback ? '🟡 Fallback' : '🔴 Disconnected'}</div>
+          <div>Initializing: {isInitializing ? 'Yes' : 'No'}</div>
+          {lastError && (
+            <div className="text-red-300 cursor-pointer" onClick={handleErrorClick}>
+              Error: {lastError.substring(0, 50)}...
+            </div>
+          )}
+        </div>
       </div>
     );
   }

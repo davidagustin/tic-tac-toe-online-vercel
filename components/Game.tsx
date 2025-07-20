@@ -138,10 +138,11 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       }
 
       console.log('Move made successfully:', data);
-    } catch (error: any) {
-      console.error('Error making move:', error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to make move';
+      console.error('Error making move:', errorMessage);
       setHasError(true);
-      alert(error.message || 'Failed to make move. Please try again.');
+      alert(errorMessage || 'Failed to make move. Please try again.');
     } finally {
       setIsLoading(false);
     }

@@ -85,17 +85,10 @@ export default function GameChat({ userName, gameId, title, description, theme, 
       // In a real implementation, you would call an API endpoint to send the message
       console.log('Game chat message would be sent:', { text, userName, gameId });
       setText('');
-    } catch (error: any) {
-      console.error('Error posting game chat message:', error);
-      
-      // Handle security-related errors
-      if (error.response?.status === 429) {
-        alert('Rate limit exceeded. Please wait a moment before sending another message.');
-      } else if (error.response?.status === 400) {
-        alert(error.response.data?.error || 'Invalid message. Please check your input.');
-      } else {
-        alert('Failed to send message. Please try again.');
-      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      console.error('Error sending message:', errorMessage);
+      alert(errorMessage);
     }
   };
 

@@ -195,64 +195,61 @@ export class RequestValidator {
     return { ip, userAgent };
   }
 
-  static validateJsonBody(body: any): any {
+  static validateJsonBody(body: unknown): Record<string, unknown> {
     if (!body || typeof body !== 'object') {
       throw new Error('Invalid request body');
     }
 
-    return body;
+    return body as Record<string, unknown>;
   }
 }
 
 // Pusher security middleware
 export class PusherSecurity {
-  static validatePusherData(data: any, type: 'chat' | 'game' | 'move'): any {
+  static validatePusherData(data: unknown, type: 'chat' | 'game' | 'move'): Record<string, unknown> {
     try {
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data');
+      }
+      
+      const dataObj = data as Record<string, unknown>;
+      
       switch (type) {
         case 'chat':
-          if (!data || typeof data !== 'object') {
-            throw new Error('Invalid chat data');
-          }
-          if (data.text) {
-            data.text = SecurityValidator.validateMessage(data.text);
+          if (dataObj.text && typeof dataObj.text === 'string') {
+            dataObj.text = SecurityValidator.validateMessage(dataObj.text);
           }
           break;
 
         case 'game':
-          if (!data || typeof data !== 'object') {
-            throw new Error('Invalid game data');
+          if (dataObj.name && typeof dataObj.name === 'string') {
+            dataObj.name = SecurityValidator.validateGameName(dataObj.name);
           }
-          if (data.name) {
-            data.name = SecurityValidator.validateGameName(data.name);
-          }
-          if (data.createdBy) {
-            data.createdBy = SecurityValidator.validateUsername(data.createdBy);
+          if (dataObj.createdBy && typeof dataObj.createdBy === 'string') {
+            dataObj.createdBy = SecurityValidator.validateUsername(dataObj.createdBy);
           }
           break;
 
         case 'move':
-          if (!data || typeof data !== 'object') {
-            throw new Error('Invalid move data');
+          if (dataObj.gameId && typeof dataObj.gameId === 'string') {
+            dataObj.gameId = SecurityValidator.validateGameId(dataObj.gameId);
           }
-          if (data.gameId) {
-            data.gameId = SecurityValidator.validateGameId(data.gameId);
+          if (dataObj.index !== undefined && typeof dataObj.index === 'number') {
+            dataObj.index = SecurityValidator.validateBoardIndex(dataObj.index);
           }
-          if (data.index !== undefined) {
-            data.index = SecurityValidator.validateBoardIndex(data.index);
-          }
-          if (data.player) {
-            data.player = SecurityValidator.validatePlayerSymbol(data.player);
+          if (dataObj.player && typeof dataObj.player === 'string') {
+            dataObj.player = SecurityValidator.validatePlayerSymbol(dataObj.player);
           }
           break;
       }
 
-      return data;
+      return dataObj;
     } catch (error) {
       throw new Error(`Pusher data validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  static validatePusherConnection(channel: any): boolean {
+  static validatePusherConnection(channel: { name?: string }): boolean {
     // Validate Pusher channel connection
     if (!channel || !channel.name) {
       return false;
@@ -297,7 +294,7 @@ export class SecurityError extends Error {
 
 // Logging for security events
 export class SecurityLogger {
-  static logSecurityEvent(event: string, details: any, severity: 'low' | 'medium' | 'high' = 'low') {
+  static logSecurityEvent(event: string, details: Record<string, unknown>, severity: 'low' | 'medium' | 'high' = 'low') {
     const timestamp = new Date().toISOString();
     const logEntry = {
       timestamp,
@@ -320,11 +317,11 @@ export class SecurityLogger {
     this.logSecurityEvent('RATE_LIMIT_EXCEEDED', { identifier }, 'medium');
   }
 
-  static logInvalidInput(input: any, context: string) {
+  static logInvalidInput(input: unknown, context: string) {
     this.logSecurityEvent('INVALID_INPUT', { input, context }, 'low');
   }
 
-  static logSuspiciousActivity(activity: string, details: any) {
+  static logSuspiciousActivity(activity: string, details: Record<string, unknown>) {
     this.logSecurityEvent('SUSPICIOUS_ACTIVITY', { activity, details }, 'high');
   }
 } 

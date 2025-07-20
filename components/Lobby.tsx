@@ -33,7 +33,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
     losses: playerStats.losses,
     draws: playerStats.draws,
     totalGames: playerStats.totalGames,
-    total_games: (playerStats as any).total_games || playerStats.totalGames
+    total_games: (playerStats as { total_games?: number }).total_games || playerStats.totalGames
   } : {
     wins: 0,
     losses: 0,
