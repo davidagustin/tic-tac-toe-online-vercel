@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
-import { 
-  saveLobbyMessage, 
-  getLobbyMessages, 
-  saveGameMessage, 
-  getGameMessages,
-  updateGameStatistics,
-  getUserStatistics
-} from '@/lib/db';
 
 // In-memory storage for games (in production, you'd use a database)
 const games = new Map();
-const gameCreators = new Map();
 
 // Helper function to check for winner
 function checkWinner(board: (string | null)[]) {

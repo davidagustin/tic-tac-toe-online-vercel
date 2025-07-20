@@ -4,13 +4,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { usePusher } from '@/hooks/usePusher';
 import type { Game } from '@/lib/pusher-client';
 
+// Add the missing constant
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 interface GameManagerProps {
   userName: string;
   onJoinGame: (gameId: string) => void;
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, games: pusherGames, reconnect } = usePusher();
+  const { isConnected, isInitializing, connectionError, isFallbackMode, reconnectAttempts, isConnecting, connect: manualReconnect } = usePusher();
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,11 +26,12 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     const loadGames = async () => {
       try {
         const response = await fetch('/api/game/list');
-        if (!response.ok) {
-          console.error('Failed to load games');
+        if (response.ok) {
+          const gamesData = await response.json();
+          setGames(gamesData);
         }
       } catch (error) {
-        console.error('Error loading games:', error);
+        console.error('Failed to load games');
       }
     };
 
@@ -97,7 +103,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       }
 
       // Check if user is already in the game
-      const game = pusherGames.find(g => g.id === gameId);
+      const game = games.find(g => g.id === gameId);
       if (game && game.players.includes(userName)) {
         alert('You are already in this game.');
         return;
@@ -130,7 +136,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.error('Error joining game:', error);
       alert(error instanceof Error ? error.message : 'Failed to join game. Please try again.');
     }
-  }, [userName, onJoinGame, pusherGames]);
+  }, [userName, onJoinGame, games]);
 
   const getStatusColor = (status: Game['status']) => {
     switch (status) {
@@ -150,10 +156,59 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     }
   };
 
-  const filteredGames = pusherGames.filter(game => filter === 'all' || game.status === filter);
+  const filteredGames = games.filter(game => filter === 'all' || game.status === filter);
+
+  const getConnectionStatus = () => {
+    if (isInitializing) return { text: 'Initializing...', color: 'text-yellow-500' };
+    if (isConnecting) return { text: 'Connecting...', color: 'text-blue-500' };
+    if (isConnected) return { text: 'Connected', color: 'text-green-500' };
+    if (isFallbackMode) return { text: 'Using Fallback Mode', color: 'text-orange-500' };
+    if (connectionError) return { text: 'Connection Error', color: 'text-red-500' };
+    return { text: 'Disconnected', color: 'text-gray-500' };
+  };
+
+  const status = getConnectionStatus();
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+      {/* Connection Status */}
+      <div className="mb-6 p-4 bg-white bg-opacity-10 backdrop-blur-lg rounded-lg border border-white border-opacity-20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className={`w-3 h-3 rounded-full ${status.color.replace('text-', 'bg-')}`}></div>
+            <span className={`font-medium ${status.color}`}>
+              {status.text}
+            </span>
+            {isFallbackMode && (
+              <span className="text-sm text-orange-300">
+                (Real-time updates disabled)
+              </span>
+            )}
+            {reconnectAttempts > 0 && (
+              <span className="text-sm text-yellow-300">
+                (Attempt {reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})
+              </span>
+            )}
+          </div>
+          
+          {!isConnected && !isConnecting && (
+            <button
+              onClick={manualReconnect}
+              disabled={isConnecting}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isConnecting ? 'Connecting...' : 'Reconnect'}
+            </button>
+          )}
+        </div>
+        
+        {connectionError && (
+          <div className="mt-2 text-sm text-red-300">
+            Error: {connectionError}
+          </div>
+        )}
+      </div>
+
       {/* Create Game Section */}
       <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
         <div className="flex items-center justify-between mb-4">
@@ -214,47 +269,6 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
             ))}
           </div>
         </div>
-
-        {!isConnected && (
-          <div className="text-center py-8">
-            <div className="text-red-400 mb-2">⚠️ Not connected to server</div>
-            <p className="text-purple-200 mb-4">Please wait for connection to load games...</p>
-            <div className="flex justify-center space-x-3">
-              <button
-                onClick={async () => {
-                  try {
-                    console.log('Testing Pusher connection...');
-                    const response = await fetch('/api/pusher-config');
-                    const config = await response.json();
-                    console.log('Pusher config:', config);
-                    
-                    // Test server connection
-                    const serverTest = await fetch('/api/test-pusher-connection');
-                    const serverResult = await serverTest.json();
-                    console.log('Server test result:', serverResult);
-                    
-                    alert('Connection test completed. Check console for details.');
-                  } catch (error) {
-                    console.error('Connection test failed:', error);
-                    alert('Connection test failed. Check console for details.');
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300"
-              >
-                Test Connection
-              </button>
-              <button
-                onClick={() => {
-                  console.log('Manual reconnect triggered from UI');
-                  reconnect();
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all duration-300"
-              >
-                Reconnect
-              </button>
-            </div>
-          </div>
-        )}
 
         {isConnected && filteredGames.length === 0 && (
           <div className="text-center py-8">

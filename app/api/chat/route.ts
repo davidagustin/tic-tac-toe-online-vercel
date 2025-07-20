@@ -8,8 +8,8 @@ export async function GET() {
     const messages = await getLobbyMessages(100);
     return NextResponse.json(messages);
   } catch (error) {
-    console.error('Error getting chat messages:', error);
-    return NextResponse.json({ error: 'Failed to get chat messages' }, { status: 500 });
+    console.warn('Database not available, returning empty messages:', error);
+    return NextResponse.json([]);
   }
 }
 
@@ -22,24 +22,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Text and userName are required' }, { status: 400 });
     }
 
-    // Save message to database
-    const savedMessage = await saveLobbyMessage(text, userName);
-    
-    if (!savedMessage) {
-      return NextResponse.json({ error: 'Failed to save message' }, { status: 500 });
+    // Try to save message to database (optional)
+    let savedMessage: { id: string; timestamp: string } | null = null;
+    try {
+      savedMessage = await saveLobbyMessage(text, userName) as { id: string; timestamp: string } | null;
+    } catch (dbError) {
+      console.warn('Database not available, continuing without persistence:', dbError);
     }
-
-    const messageObj = savedMessage as { id: string; timestamp: string };
+    
+    // Create message object with or without database ID
     const message = {
-      id: messageObj.id,
+      id: savedMessage?.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text,
       user_name: userName,
-      timestamp: messageObj.timestamp
+      timestamp: savedMessage?.timestamp || new Date().toISOString()
     };
 
-    // Trigger Pusher event
+    // Trigger Pusher event for real-time messaging
     if (pusherServer) {
-      await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.CHAT_MESSAGE, { message });
+      try {
+        await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.CHAT_MESSAGE, { message });
+        console.log('Pusher event triggered successfully for chat message');
+      } catch (pusherError) {
+        console.error('Failed to trigger Pusher event:', pusherError);
+        // Continue even if Pusher fails, but log the error
+      }
+    } else {
+      console.warn('Pusher server not available');
     }
 
     return NextResponse.json(message);

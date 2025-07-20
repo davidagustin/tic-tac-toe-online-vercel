@@ -42,37 +42,25 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     const config = await response.json();
     
-    console.log('Fetched Pusher config from server:', {
-      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
-      cluster: config.cluster,
-      keyLength: config.key?.length || 0,
-    });
-    
     if (!config.key || !config.cluster) {
       throw new Error('Pusher configuration not available');
     }
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
     
-    console.log('Creating Pusher client with simplified config:', {
-      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
-      cluster: config.cluster,
-      forceTLS: clientConfig.forceTLS,
-    });
-    
     pusherClient = new PusherClient(config.key, clientConfig);
 
-    // Set up connection event handlers with detailed logging
+    // Set up connection event handlers with essential logging
     pusherClient.connection.bind('connecting', () => {
-      console.log('Pusher client: Connecting...');
+      // Connection attempt started
     });
 
     pusherClient.connection.bind('connected', () => {
-      console.log('Pusher client: Connected successfully');
+      // Connection successful
     });
 
     pusherClient.connection.bind('disconnected', () => {
-      console.log('Pusher client: Disconnected');
+      // Connection lost
     });
 
     pusherClient.connection.bind('error', (error: unknown) => {
@@ -89,20 +77,11 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     // Add reconnection event handlers
     pusherClient.connection.bind('reconnecting', () => {
-      console.log('Pusher client: Reconnecting...');
+      // Reconnecting
     });
 
     pusherClient.connection.bind('reconnected', () => {
-      console.log('Pusher client: Reconnected successfully');
-    });
-
-    // Log initial connection state
-    console.log('Pusher client initial state:', pusherClient.connection.state);
-
-    console.log('Pusher client initialized with simplified config:', {
-      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
-      cluster: config.cluster,
-      keyLength: config.key?.length || 0,
+      // Reconnected successfully
     });
 
     return pusherClient;

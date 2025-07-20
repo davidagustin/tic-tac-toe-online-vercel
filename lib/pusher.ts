@@ -70,7 +70,7 @@ const createPusherServer = () => {
   });
   
   try {
-    // Simplified configuration matching Stack Overflow working example
+    // Use the exact same configuration as the working example
     return new PusherServer({
       appId: serverEnv.PUSHER_APP_ID!,
       key: serverEnv.PUSHER_KEY!,
@@ -352,8 +352,6 @@ export class PusherUtils {
       }
 
       await pusherServer.trigger(channel, event, sanitizedData);
-      
-      console.log(`Pusher event triggered: ${channel}:${event}`);
     } catch (error) {
       console.error('Failed to trigger Pusher event:', {
         channel,
@@ -383,8 +381,6 @@ export class PusherUtils {
           channel.bind(event, handler);
         }
       });
-
-      console.log(`Subscribed to channel: ${channelName}`);
     } catch (error) {
       console.error('Failed to subscribe to channel:', {
         channelName,

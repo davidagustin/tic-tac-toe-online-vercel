@@ -36,7 +36,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
-  const { isConnected, leaveGame } = usePusher();
+  const { isConnected } = usePusher();
 
   // Load user from localStorage on component mount
   useEffect(() => {
@@ -56,25 +56,6 @@ export default function Home() {
   // Listen for game removal events
   useEffect(() => {
     if (!isConnected) return;
-
-    const handleGameRemoved = (removedGameId: string) => {
-      console.log('Main page: game removed event received for game:', removedGameId);
-      console.log('Main page: current game state:', currentGame);
-      if (currentGame && currentGame.gameId === removedGameId) {
-        console.log('Main page: current game was removed, returning to lobby');
-        setCurrentGame(null);
-      } else {
-        console.log('Main page: game removed but not current game, or no current game');
-      }
-    };
-
-    const handlePusherError = (error: { message: string }) => {
-      console.error('Main page: Pusher error:', error);
-      if (error.message === 'Game not found' && currentGame) {
-        console.log('Main page: game not found error, returning to lobby');
-        setCurrentGame(null);
-      }
-    };
 
     // Note: These events would be handled by the Pusher hook
     // The actual event handling is done in the usePusher hook

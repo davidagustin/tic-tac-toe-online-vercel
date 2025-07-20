@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // In-memory storage for games (in production, you'd use a database)
 const games = new Map();
