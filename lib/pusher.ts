@@ -33,7 +33,7 @@ const env = typeof window === 'undefined' ? validateEnvironment() : {
   PUSHER_CLUSTER: undefined,
 };
 
-// Server-side Pusher instance with best practices (server-side only)
+// Server-side Pusher instance with simplified configuration (server-side only)
 const createPusherServer = () => {
   if (typeof window !== 'undefined') {
     throw new Error('PusherServer can only be created on the server-side');
@@ -62,7 +62,7 @@ const createPusherServer = () => {
     return null;
   }
   
-  console.log('Creating Pusher server with config:', {
+  console.log('Creating Pusher server with simplified config:', {
     appId: serverEnv.PUSHER_APP_ID ? 'Set' : 'Not set',
     key: serverEnv.PUSHER_KEY ? `${serverEnv.PUSHER_KEY.substring(0, 8)}...` : 'Not set',
     cluster: serverEnv.PUSHER_CLUSTER,
@@ -70,7 +70,7 @@ const createPusherServer = () => {
   });
   
   try {
-    // Use the exact same configuration as the working example
+    // Simplified configuration matching Stack Overflow working example
     return new PusherServer({
       appId: serverEnv.PUSHER_APP_ID!,
       key: serverEnv.PUSHER_KEY!,
@@ -89,18 +89,17 @@ export const pusherServer = typeof window === 'undefined' ? createPusherServer()
 // Client-side Pusher instance - will be initialized with config from server
 let pusherClient: PusherClient | null = null;
 
-// Enhanced Pusher client configuration
+// Simplified Pusher client configuration (matching Stack Overflow working example)
 const getPusherClientConfig = (key: string, cluster: string) => ({
   cluster,
   forceTLS: true,
-  // Performance settings
-  disableStats: true, // Disable stats collection for better performance
-  // Connection settings
-  timeout: 20000, // 20 second timeout
-  // Additional settings for better compatibility
-  wsHost: `ws-${cluster}.pusherapp.com`,
-  wsPort: 443,
-  wssPort: 443,
+  // Remove auth endpoint since we're not using private channels
+  // authEndpoint: '/api/pusher/auth', // Removed
+  // auth: {
+  //   headers: {
+  //     'Content-Type': 'application/json',
+  //   },
+  // }, // Removed
 });
 
 // Function to initialize Pusher client with config from server
@@ -141,10 +140,9 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
     
-    console.log('Creating Pusher client with config:', {
+    console.log('Creating Pusher client with simplified config:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
-      timeout: clientConfig.timeout,
       forceTLS: clientConfig.forceTLS,
     });
     
@@ -178,7 +176,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
     // Log initial connection state
     console.log('Pusher client initial state:', pusherClient.connection.state);
 
-    console.log('Pusher client initialized with config from server:', {
+    console.log('Pusher client initialized with simplified config:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,

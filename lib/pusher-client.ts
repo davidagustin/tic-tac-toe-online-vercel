@@ -3,18 +3,17 @@ import PusherClient from 'pusher-js';
 // Client-side Pusher instance - will be initialized with config from server
 let pusherClient: PusherClient | null = null;
 
-// Enhanced Pusher client configuration
+// Simplified Pusher client configuration (matching Stack Overflow working example)
 const getPusherClientConfig = (key: string, cluster: string) => ({
   cluster,
   forceTLS: true,
-  // Performance settings
-  disableStats: true, // Disable stats collection for better performance
-  // Connection settings
-  timeout: 20000, // 20 second timeout
-  // Additional settings for better compatibility
-  wsHost: `ws-${cluster}.pusherapp.com`,
-  wsPort: 443,
-  wssPort: 443,
+  // Remove auth endpoint since we're not using private channels
+  // authEndpoint: '/api/pusher/auth', // Removed
+  // auth: {
+  //   headers: {
+  //     'Content-Type': 'application/json',
+  //   },
+  // }, // Removed
 });
 
 // Function to initialize Pusher client with config from server
@@ -55,6 +54,12 @@ export async function initializePusherClient(): Promise<PusherClient> {
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
     
+    console.log('Creating Pusher client with simplified config:', {
+      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
+      cluster: config.cluster,
+      forceTLS: clientConfig.forceTLS,
+    });
+    
     pusherClient = new PusherClient(config.key, clientConfig);
 
     // Set up connection event handlers with detailed logging
@@ -94,7 +99,7 @@ export async function initializePusherClient(): Promise<PusherClient> {
     // Log initial connection state
     console.log('Pusher client initial state:', pusherClient.connection.state);
 
-    console.log('Pusher client initialized with config from server:', {
+    console.log('Pusher client initialized with simplified config:', {
       key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
       cluster: config.cluster,
       keyLength: config.key?.length || 0,

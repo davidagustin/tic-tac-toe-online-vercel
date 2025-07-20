@@ -4,8 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Lobby from '@/components/Lobby';
 import Game from '@/components/Game';
 import { usePusher } from '@/hooks/usePusher';
-import { PusherDebug } from '@/components/PusherDebug';
-import { PusherTest } from '@/components/PusherTest';
 
 // Client-only wrapper to prevent hydration issues
 function ClientOnly({ children }: { children: React.ReactNode }) {
@@ -38,7 +36,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
-  const { isConnected, leaveGame, isInitializing, lastError } = usePusher();
+  const { isConnected, leaveGame } = usePusher();
 
   // Load user from localStorage on component mount
   useEffect(() => {
@@ -253,20 +251,6 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Lobby userName={user.username} onJoinGame={handleJoinGame} />
         </div>
-        
-        {/* Debug Component */}
-        {process.env.NODE_ENV === 'development' && (
-          <>
-                        <PusherDebug 
-              isConnected={isConnected} 
-              isInitializing={isInitializing} 
-              lastError={lastError} 
-            />
-            
-            {/* Test Component */}
-            <PusherTest />
-          </>
-        )}
       </div>
     );
   }
