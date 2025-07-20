@@ -75,6 +75,10 @@ export function usePusher() {
           clearTimeout(connectionTimeoutRef.current);
           connectionTimeoutRef.current = null;
         }
+        
+        // Load games immediately when connected
+        console.log('Loading games after successful connection...');
+        loadGamesFromAPI();
       });
 
       pusherClient.connection.bind('disconnected', () => {
@@ -410,10 +414,22 @@ export function usePusher() {
     // Try to load games after a delay if not connected
     const timeout = setTimeout(() => {
       console.log('Checking connection status after timeout...', { isConnected, isInitializing });
-      if (!isConnected && !isUsingFallback) {
+      
+      // Check both React state and actual Pusher connection state
+      const pusherClient = pusherClientRef.current;
+      const actualConnectionState = pusherClient?.connection?.state;
+      
+      console.log('Actual Pusher connection state:', actualConnectionState);
+      
+      if (!isConnected && !isUsingFallback && actualConnectionState !== 'connected') {
         console.log('Pusher not connected, loading games from API...');
         loadGamesFromAPI();
         startPolling();
+      } else if (actualConnectionState === 'connected') {
+        console.log('Pusher is actually connected, updating state...');
+        setIsConnected(true);
+        setIsUsingFallback(false);
+        setIsInitializing(false);
       }
     }, 6000); // Increased timeout to 6 seconds to allow connection to establish
 
