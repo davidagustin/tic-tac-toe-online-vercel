@@ -18,9 +18,18 @@
     "test:visual": "node scripts/visual-test.js",
     "demo:visual": "node scripts/demo-visual-test.js",
     "setup:pusher-env": "node scripts/setup-env-specific-pusher.js",
-    "test:mobile-e2e": "node tests/run-mobile-e2e.js",
-    "test:mobile-setup": "node tests/appium-setup.js",
-    "test:mobile-doctor": "node tests/appium-setup.js --doctor"
+    "logs": "node scripts/debug-logs.js",
+    "logs:vercel": "node scripts/debug-logs.js vercel",
+    "logs:status": "node scripts/debug-logs.js status",
+    "logs:browser": "node scripts/debug-logs.js browser",
+    "cat:logs": "./scripts/cat-logs.sh",
+    "cat:vercel": "./scripts/cat-logs.sh vercel",
+    "cat:errors": "./scripts/cat-logs.sh errors",
+    "cat:pusher": "./scripts/cat-logs.sh pusher",
+    "cat:api": "./scripts/cat-logs.sh api",
+    "cat:live": "./scripts/cat-logs.sh live",
+    "logs:summary": "./scripts/cat-logs.sh summary",
+    "logs:search": "./scripts/cat-logs.sh search"
   },
   "dependencies": {
     "axios": "^1.6.2",
