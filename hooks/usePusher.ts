@@ -19,9 +19,19 @@ export function usePusher() {
   const userChannel = useRef<Channel | null>(null);
   const pusherClientRef = useRef<any>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionAttemptRef = useRef<boolean>(false);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Connect to Pusher
   const connect = useCallback(async () => {
+    // Prevent multiple connection attempts
+    if (connectionAttemptRef.current) {
+      console.log('Connection attempt already in progress, skipping...');
+      return;
+    }
+    
+    connectionAttemptRef.current = true;
+    
     try {
       console.log('Attempting to connect to Pusher...');
       
@@ -37,6 +47,9 @@ export function usePusher() {
         setIsConnected(true);
         setLastError(null);
         setIsInitializing(false);
+        setIsUsingFallback(false);
+        connectionAttemptRef.current = false;
+        return;
       }
       
       // Subscribe to lobby channel
@@ -53,6 +66,15 @@ export function usePusher() {
         setLastError(null);
         setIsInitializing(false);
         setIsUsingFallback(false); // Clear fallback status when connected
+        
+        // Clear connection attempt flag
+        connectionAttemptRef.current = false;
+        
+        // Clear any existing timeout
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
       });
 
       pusherClient.connection.bind('disconnected', () => {
@@ -77,6 +99,9 @@ export function usePusher() {
         setIsConnected(false);
         setIsInitializing(false);
         
+        // Clear connection attempt flag
+        connectionAttemptRef.current = false;
+        
         // If connection fails, start fallback immediately
         if (!isUsingFallback) {
           console.log('Starting fallback due to connection error...');
@@ -86,22 +111,29 @@ export function usePusher() {
       });
 
       // Set a timeout for connection
-      const connectionTimeout = setTimeout(() => {
+      connectionTimeoutRef.current = setTimeout(() => {
         if (!isConnected && !isUsingFallback) {
           console.log('Pusher connection timeout, starting fallback...');
           loadGamesFromAPI();
           startPolling();
         }
+        connectionAttemptRef.current = false;
       }, 5000); // Increased timeout to 5 seconds
 
       // Clean up timeout when connected
       pusherClient.connection.bind('connected', () => {
-        clearTimeout(connectionTimeout);
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
       });
 
       // Clean up timeout when error occurs
       pusherClient.connection.bind('error', () => {
-        clearTimeout(connectionTimeout);
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
       });
 
       // Lobby event handlers
@@ -136,6 +168,9 @@ export function usePusher() {
       setLastError(error instanceof Error ? error.message : 'Connection failed');
       setIsInitializing(false);
       
+      // Clear connection attempt flag
+      connectionAttemptRef.current = false;
+      
       // If Pusher initialization fails, start fallback immediately
       if (!isUsingFallback) {
         console.log('Pusher initialization failed, starting fallback...');
@@ -165,6 +200,13 @@ export function usePusher() {
       }
       pusherClient.disconnect();
       setIsConnected(false);
+      
+      // Clear connection attempt flag and timeouts
+      connectionAttemptRef.current = false;
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
     } catch (error) {
       console.error('Error disconnecting from Pusher:', error);
     }
@@ -360,7 +402,10 @@ export function usePusher() {
 
   // Initialize connection on mount
   useEffect(() => {
-    connect();
+    // Only attempt connection if not already connected and not already attempting
+    if (!isConnected && !connectionAttemptRef.current) {
+      connect();
+    }
 
     // Try to load games after a delay if not connected
     const timeout = setTimeout(() => {
@@ -378,9 +423,13 @@ export function usePusher() {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
       disconnect();
     };
-  }, [connect, disconnect, isConnected, isInitializing, isUsingFallback]);
+  }, []); // Remove dependencies to prevent multiple calls
 
   return {
     isConnected,
@@ -393,6 +442,11 @@ export function usePusher() {
     playerStats,
     connect,
     disconnect,
+    reconnect: () => {
+      console.log('Manual reconnect triggered');
+      connectionAttemptRef.current = false;
+      connect();
+    },
     joinGame,
     leaveGame,
     subscribeToUser,

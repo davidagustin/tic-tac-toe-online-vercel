@@ -10,7 +10,7 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, isUsingFallback, games: pusherGames } = usePusher();
+  const { isConnected, isUsingFallback, games: pusherGames, reconnect } = usePusher();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -219,29 +219,40 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           <div className="text-center py-8">
             <div className="text-red-400 mb-2">⚠️ Not connected to server</div>
             <p className="text-purple-200 mb-4">Please wait for connection to load games...</p>
-            <button
-              onClick={async () => {
-                try {
-                  console.log('Testing Pusher connection...');
-                  const response = await fetch('/api/pusher-config');
-                  const config = await response.json();
-                  console.log('Pusher config:', config);
-                  
-                  // Test server connection
-                  const serverTest = await fetch('/api/test-pusher-connection');
-                  const serverResult = await serverTest.json();
-                  console.log('Server test result:', serverResult);
-                  
-                  alert('Connection test completed. Check console for details.');
-                } catch (error) {
-                  console.error('Connection test failed:', error);
-                  alert('Connection test failed. Check console for details.');
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300"
-            >
-              Test Connection
-            </button>
+            <div className="flex justify-center space-x-3">
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('Testing Pusher connection...');
+                    const response = await fetch('/api/pusher-config');
+                    const config = await response.json();
+                    console.log('Pusher config:', config);
+                    
+                    // Test server connection
+                    const serverTest = await fetch('/api/test-pusher-connection');
+                    const serverResult = await serverTest.json();
+                    console.log('Server test result:', serverResult);
+                    
+                    alert('Connection test completed. Check console for details.');
+                  } catch (error) {
+                    console.error('Connection test failed:', error);
+                    alert('Connection test failed. Check console for details.');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300"
+              >
+                Test Connection
+              </button>
+              <button
+                onClick={() => {
+                  console.log('Manual reconnect triggered from UI');
+                  reconnect();
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all duration-300"
+              >
+                Reconnect
+              </button>
+            </div>
           </div>
         )}
 
