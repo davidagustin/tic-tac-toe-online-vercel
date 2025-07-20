@@ -19,10 +19,17 @@ interface ChatRoomProps {
 }
 
 export default function ChatRoom({ userName, title, description, theme, icon }: ChatRoomProps) {
-  const { isConnected, chatMessages } = usePusher();
+  const { isConnected, isUsingFallback, chatMessages } = usePusher();
   const [text, setText] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Determine if chat is available (either connected or in fallback mode)
+  const isChatAvailable = isConnected || isUsingFallback;
+  
+  // Use Pusher messages if connected, otherwise use local messages
+  const displayMessages = isConnected ? chatMessages : localMessages;
 
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -33,7 +40,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
   // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [chatMessages, scrollToBottom]);
+  }, [displayMessages, scrollToBottom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,17 +70,28 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
         }
       }
 
-      // Send message via API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text, userName }),
-      });
+      if (isConnected) {
+        // Send message via API for real-time chat
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text, userName }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+      } else {
+        // Add message locally for fallback mode
+        const newMessage: Message = {
+          id: Date.now(),
+          text: text.trim(),
+          user_name: userName,
+          timestamp: new Date().toISOString(),
+        };
+        setLocalMessages(prev => [...prev, newMessage]);
       }
 
       setText('');
@@ -129,7 +147,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
                   <p className="text-purple-200">Loading messages...</p>
                 </div>
               </div>
-            ) : chatMessages.length === 0 ? (
+            ) : displayMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <div className="text-4xl mb-3">{icon}</div>
@@ -139,7 +157,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
               </div>
             ) : (
               <ul className="space-y-3">
-                {chatMessages.map((message, i) => (
+                {displayMessages.map((message, i) => (
                   <li key={message.id || i} className={`mb-3 p-4 bg-gradient-to-r ${config.gradient} rounded-2xl ${config.border} shadow-sm`}>
                     <div className="flex items-start space-x-3">
                       <div className={`w-8 h-8 bg-gradient-to-r ${config.avatar} rounded-full flex items-center justify-center flex-shrink-0`}>
@@ -147,7 +165,9 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
+                          <span className="text-purple-300 font-semibold text-sm">
+                            {'userName' in message ? message.userName : message.user_name}
+                          </span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
                         </div>
@@ -173,11 +193,11 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
               onChange={(e) => setText(e.target.value)}
               className={`flex-1 px-4 py-3 border-2 border-white/20 rounded-xl focus:outline-none focus:border-green-600 bg-white/10 backdrop-blur-sm text-white placeholder-pink-200 text-lg transition-all duration-200`}
               placeholder="Type your message..."
-              disabled={!isConnected}
+              disabled={!isChatAvailable}
             />
             <button
               type="submit"
-              disabled={!isConnected || !text.trim() || isLoading}
+              disabled={!isChatAvailable || !text.trim() || isLoading}
               className={`bg-gradient-to-r ${config.button} text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg ${config.shadow} disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2`}
             >
               <span>📤</span>
@@ -190,13 +210,26 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
       {/* Connection Status */}
       <div className="text-center">
         <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${
-          isConnected 
-            ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+          isChatAvailable 
+            ? isConnected 
+              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+              : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
             : 'bg-red-500/20 text-red-300 border border-red-400/30'
         }`}>
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+          <div className={`w-2 h-2 rounded-full ${
+            isChatAvailable 
+              ? isConnected 
+                ? 'bg-green-400 animate-pulse' 
+                : 'bg-yellow-400'
+              : 'bg-red-400'
+          }`}></div>
           <span className="font-medium">
-            {isConnected ? 'Connected to chat' : 'Disconnected from chat'}
+            {isConnected 
+              ? 'Connected to chat' 
+              : isUsingFallback 
+                ? 'Using fallback mode' 
+                : 'Disconnected from chat'
+            }
           </span>
         </div>
       </div>
