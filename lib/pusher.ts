@@ -95,6 +95,8 @@ const getPusherClientConfig = (key: string, cluster: string) => ({
   forceTLS: true,
   // Performance settings
   disableStats: true, // Disable stats collection for better performance
+  // Connection settings
+  timeout: 20000, // 20 second timeout
   // Additional settings for better compatibility
   wsHost: `ws-${cluster}.pusherapp.com`,
   wsPort: 443,
@@ -138,6 +140,13 @@ export async function initializePusherClient(): Promise<PusherClient> {
     }
 
     const clientConfig = getPusherClientConfig(config.key, config.cluster);
+    
+    console.log('Creating Pusher client with config:', {
+      key: config.key ? `${config.key.substring(0, 8)}...` : 'Not set',
+      cluster: config.cluster,
+      timeout: clientConfig.timeout,
+      forceTLS: clientConfig.forceTLS,
+    });
     
     pusherClient = new PusherClient(config.key, clientConfig);
 

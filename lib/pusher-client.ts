@@ -9,6 +9,8 @@ const getPusherClientConfig = (key: string, cluster: string) => ({
   forceTLS: true,
   // Performance settings
   disableStats: true, // Disable stats collection for better performance
+  // Connection settings
+  timeout: 20000, // 20 second timeout
   // Additional settings for better compatibility
   wsHost: `ws-${cluster}.pusherapp.com`,
   wsPort: 443,
