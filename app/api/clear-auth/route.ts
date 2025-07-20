@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
       // Get all games and find ones with this user
       const { getAllGames } = await import('@/lib/game-storage');
-      const allGames = getAllGames();
+      const allGames = await getAllGames();
 
       for (const game of allGames) {
         if (game.players.includes(username)) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
           // If no players left, delete the game
           if (updatedGame.players.length === 0) {
             console.log(`🧹 Deleting empty game ${game.id}`);
-            deleteGame(game.id);
+            await deleteGame(game.id);
 
             // Notify lobby about game removal
             if (pusherServer) {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
             }
           } else {
             // Update game with remaining players
-            setGame(game.id, updatedGame);
+            await setGame(game.id, updatedGame);
 
             // Notify lobby about game update
             if (pusherServer) {

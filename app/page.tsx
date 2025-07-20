@@ -21,9 +21,8 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 }
 
 interface User {
-  id: number;
   username: string;
-  createdAt: string;
+  password: string;
 }
 
 export default function Home() {
@@ -152,59 +151,27 @@ export default function Home() {
     }
   };
 
-  const handleToggleMode = () => {
-    setIsLogin(!isLogin);
+  const handleSignOut = () => {
+    setUser(null);
+    setShowLobby(false);
+    setCurrentGame(null);
+    localStorage.removeItem('ticTacToeUser');
+
+    // Clear form
+    setUsername('');
+    setPassword('');
     setError('');
     setSuccess('');
+  };
+
+  const handleBackToLobby = () => {
+    setCurrentGame(null);
   };
 
   const handleJoinGame = (gameId: string) => {
     if (user) {
-      console.log('Joining game:', gameId, 'as user:', user.username);
       setCurrentGame({ gameId, userName: user.username });
     }
-  };
-
-  const handleBackToLobby = () => {
-    console.log('Returning to lobby');
-    setCurrentGame(null);
-  };
-
-  const handleSignOut = async () => {
-    try {
-      // If user is in a game, leave the game first
-      if (currentGame && isConnected) {
-        console.log('Leaving game before sign out:', currentGame.gameId);
-        // Game leaving is handled by the Game component
-      }
-
-      // Clear games state immediately
-      clearGames();
-
-      // Notify server to clean up user's games and connections
-      await fetch('/api/clear-auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: user?.username,
-          action: 'signout'
-        }),
-      });
-    } catch (error) {
-      console.error('Error clearing auth:', error);
-    }
-
-    // Clear local state
-    setUser(null);
-    setShowLobby(false);
-    setCurrentGame(null);
-    setSuccess('');
-    setError('');
-
-    // Clear localStorage
-    localStorage.removeItem('ticTacToeUser');
   };
 
   // If user is authenticated and lobby should be shown, display the lobby or game
@@ -215,20 +182,20 @@ export default function Home() {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 animate-fadeIn">
           {/* Header with user info and sign out */}
           <div className="bg-white/10 backdrop-blur-lg border-b border-white/20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center py-4">
+            <div className="max-w-7xl mx-auto mobile-padding">
+              <div className="mobile-header py-3 sm:py-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center">
-                    <span className="text-white text-lg">🎮</span>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center">
+                    <span className="text-white text-base sm:text-lg">🎮</span>
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white">Tic-Tac-Toe Online</h1>
-                    <p className="text-purple-200 text-sm">Welcome, {user.username}!</p>
+                    <h1 className="text-lg sm:text-xl font-bold text-white">Tic-Tac-Toe Online</h1>
+                    <p className="text-purple-200 text-xs sm:text-sm">Welcome, {user.username}!</p>
                   </div>
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="bg-white/10 backdrop-blur-sm text-white font-medium py-2 px-4 rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/20 hover:scale-105"
+                  className="btn-secondary text-sm px-3 py-2 sm:px-4 sm:py-2"
                 >
                   Sign Out
                 </button>
@@ -251,20 +218,20 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 animate-fadeIn">
         {/* Header with user info and sign out */}
         <div className="bg-white/10 backdrop-blur-lg border-b border-white/20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
+          <div className="max-w-7xl mx-auto mobile-padding">
+            <div className="mobile-header py-3 sm:py-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center">
-                  <span className="text-white text-lg">🎮</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center">
+                  <span className="text-white text-base sm:text-lg">🎮</span>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">Tic-Tac-Toe Online</h1>
-                  <p className="text-purple-200 text-sm">Welcome, {user.username}!</p>
+                  <h1 className="text-lg sm:text-xl font-bold text-white">Tic-Tac-Toe Online</h1>
+                  <p className="text-purple-200 text-xs sm:text-sm">Welcome, {user.username}!</p>
                 </div>
               </div>
               <button
                 onClick={handleSignOut}
-                className="bg-white/10 backdrop-blur-sm text-white font-medium py-2 px-4 rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/20 hover:scale-105"
+                className="btn-secondary text-sm px-3 py-2 sm:px-4 sm:py-2"
               >
                 Sign Out
               </button>
@@ -273,7 +240,7 @@ export default function Home() {
         </div>
 
         {/* Lobby Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto mobile-padding py-4 sm:py-8">
           <Lobby userName={user.username} onJoinGame={handleJoinGame} />
         </div>
       </div>
@@ -281,25 +248,25 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center mobile-padding">
       {/* Animated Background Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute top-1/3 right-1/4 w-72 h-72 bg-yellow-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-1/4 left-1/4 w-48 h-48 sm:w-72 sm:h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute top-1/3 right-1/4 w-48 h-48 sm:w-72 sm:h-72 bg-yellow-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-1/4 left-1/3 w-48 h-48 sm:w-72 sm:h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       {/* Glass Morphism Card */}
       <div className="relative z-10 w-full max-w-md">
-        <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-3xl shadow-2xl border border-white border-opacity-20 p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full mb-4">
-              <span className="text-2xl">🎮</span>
+        <div className="card">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full mb-3 sm:mb-4">
+              <span className="text-xl sm:text-2xl">🎮</span>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </h1>
-            <p className="text-purple-200">
+            <p className="text-purple-200 mobile-text">
               {isLogin
                 ? 'Sign in to continue your Tic-Tac-Toe adventure'
                 : 'Join the Tic-Tac-Toe community'
@@ -309,110 +276,116 @@ export default function Home() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500 bg-opacity-20 border border-red-400 border-opacity-30 rounded-2xl text-red-200 text-center">
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-500 bg-opacity-20 border border-red-400 border-opacity-30 rounded-2xl text-red-200 text-center mobile-text">
               {error}
             </div>
           )}
 
           {/* Success Message */}
           {success && (
-            <div className="mb-6 p-4 bg-green-500 bg-opacity-20 border border-green-400 border-opacity-30 rounded-2xl text-green-200 text-center">
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-green-500 bg-opacity-20 border border-green-400 border-opacity-30 rounded-2xl text-green-200 text-center mobile-text">
               {success}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6" suppressHydrationWarning>
-            <ClientOnly>
-              <div className="space-y-6">
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-white mb-2">
-                    Username
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="username"
-                      name="username"
-                      data-testid="username-input"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-4 py-4 bg-white bg-opacity-10 border-2 border-purple-300 border-opacity-30 rounded-2xl focus:outline-none focus:border-purple-600 text-white placeholder-pink-200 text-lg transition-all duration-300 backdrop-blur-sm"
-                      placeholder="Enter your username"
-                      autoFocus
-                      disabled={isLoading}
-                      required
-                      suppressHydrationWarning
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                      <span className="text-purple-300 text-xl">👤</span>
-                    </div>
-                  </div>
-                </div>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-purple-200 mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="userName"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input-primary input-mobile"
+                placeholder="Enter your username..."
+                required
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
 
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      data-testid="password-input"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-4 bg-white bg-opacity-10 border-2 border-purple-300 border-opacity-30 rounded-2xl focus:outline-none focus:border-purple-600 text-white placeholder-pink-200 text-lg transition-all duration-300 backdrop-blur-sm"
-                      placeholder="Enter your password"
-                      disabled={isLoading}
-                      required
-                      minLength={isLogin ? undefined : 6}
-                      suppressHydrationWarning
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                      <span className="text-purple-300 text-xl">🔒</span>
-                    </div>
-                  </div>
-                  {!isLogin && (
-                    <p className="text-purple-200 text-sm mt-1">Password must be at least 6 characters</p>
-                  )}
-                </div>
-              </div>
-            </ClientOnly>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-purple-200 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-primary input-mobile"
+                placeholder="Enter your password..."
+                required
+                autoComplete={isLogin ? "current-password" : "new-password"}
+              />
+            </div>
 
             <button
               type="submit"
-              data-testid="submit-button"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-purple-600 via-pink-400 to-red-500 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 hover:from-purple-700 hover:via-pink-500 hover:to-red-600 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              className="btn-primary w-full"
+              data-testid="submit-button"
             >
               {isLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Processing...</span>
-                </>
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>{isLogin ? 'Signing in...' : 'Creating account...'}</span>
+                </div>
               ) : (
-                <>
-                  <span className="text-xl">🚀</span>
-                  <span>{isLogin ? 'Sign In' : 'Sign Up'}</span>
-                </>
+                <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
               )}
             </button>
 
             <div className="text-center">
-              <span className="text-purple-200">or</span>
+              <span className="text-purple-200 text-sm">or</span>
             </div>
 
             <button
               type="button"
-              onClick={handleToggleMode}
-              disabled={isLoading}
-              className="w-full bg-white bg-opacity-10 backdrop-blur-sm text-white font-medium py-3 px-6 rounded-2xl border border-white border-opacity-20 transition-all duration-300 hover:bg-white hover:bg-opacity-20 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError('');
+                setSuccess('');
+              }}
+              className="btn-secondary w-full mobile-text"
             >
-              {isLogin ? 'Create New Account' : 'Already have an account? Sign In'}
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
-
-
           </form>
+
+          {/* Features List for Mobile */}
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white border-opacity-20">
+            <div className="space-y-2 sm:space-y-3">
+              <div className="flex items-center space-x-3">
+                <span className="text-green-400 text-base sm:text-lg">✅</span>
+                <span className="text-purple-200 text-sm sm:text-base">Real-time multiplayer gaming</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-green-400 text-base sm:text-lg">✅</span>
+                <span className="text-purple-200 text-sm sm:text-base">Live chat with other players</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-green-400 text-base sm:text-lg">✅</span>
+                <span className="text-purple-200 text-sm sm:text-base">Free to play, mobile-friendly</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Connection Status */}
+          <div className="mt-4 sm:mt-6 text-center">
+            <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs ${isConnected
+              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+              : 'bg-red-500/20 text-red-300 border border-red-400/30'
+              }`}>
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+              <span>{isConnected ? 'Real-time connected' : 'Offline mode'}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

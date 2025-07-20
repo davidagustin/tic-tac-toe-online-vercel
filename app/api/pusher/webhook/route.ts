@@ -58,7 +58,7 @@ async function cleanupDisconnectedUser(userId: string) {
 
     // Get all games and find ones with this user
     const { getAllGames } = await import('@/lib/game-storage');
-    const allGames = getAllGames();
+    const allGames = await getAllGames();
 
     for (const game of allGames) {
       if (game.players.includes(userId)) {
@@ -73,7 +73,7 @@ async function cleanupDisconnectedUser(userId: string) {
         // If no players left, delete the game
         if (updatedGame.players.length === 0) {
           console.log(`🧹 Deleting empty game ${game.id} after user disconnect`);
-          deleteGame(game.id);
+          await deleteGame(game.id);
 
           // Notify lobby about game removal
           if (pusherServer) {
@@ -81,7 +81,7 @@ async function cleanupDisconnectedUser(userId: string) {
           }
         } else {
           // Update game with remaining players
-          setGame(game.id, updatedGame);
+          await setGame(game.id, updatedGame);
 
           // Notify lobby about game update
           if (pusherServer) {
