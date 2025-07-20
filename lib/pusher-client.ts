@@ -9,10 +9,9 @@ const getPusherClientConfig = (key: string, cluster: string) => ({
   forceTLS: true,
   // Performance settings
   disableStats: true, // Disable stats collection for better performance
-  // Additional settings for better compatibility
-  wsHost: `ws-${cluster}.pusherapp.com`,
-  wsPort: 443,
-  wssPort: 443,
+  // Connection settings
+  timeout: 20000, // 20 second timeout
+  // Remove custom wsHost and wsPort to use default Pusher endpoints
 });
 
 // Function to initialize Pusher client with config from server
@@ -134,12 +133,6 @@ export const CHANNELS = {
       throw new Error('Invalid user ID for channel');
     }
     return `user-${userId}`;
-  },
-  PRIVATE: (userId: string) => {
-    if (!userId || typeof userId !== 'string') {
-      throw new Error('Invalid user ID for private channel');
-    }
-    return `private-user-${userId}`;
   },
 };
 

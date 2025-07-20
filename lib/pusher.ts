@@ -290,12 +290,6 @@ export const CHANNELS = {
     }
     return `user-${userId}`;
   },
-  PRIVATE: (userId: string) => {
-    if (!userId || typeof userId !== 'string') {
-      throw new Error('Invalid user ID for private channel');
-    }
-    return `private-user-${userId}`;
-  },
 };
 
 // Event names with validation
