@@ -154,14 +154,16 @@ export async function initializePusherClient(): Promise<PusherClient> {
       console.log('Pusher client: Disconnected');
     });
 
-    pusherClient.connection.bind('error', (error: any) => {
+    pusherClient.connection.bind('error', (error: unknown) => {
       console.error('Pusher client: Connection error:', error);
-      console.error('Error details:', {
-        code: error.code,
-        data: error.data,
-        message: error.message,
-        type: error.type
-      });
+      if (error && typeof error === 'object' && 'code' in error) {
+        console.error('Error details:', {
+          code: (error as { code?: unknown }).code,
+          data: (error as { data?: unknown }).data,
+          message: (error as { message?: unknown }).message,
+          type: (error as { type?: unknown }).type
+        });
+      }
     });
 
     // Log initial connection state
@@ -305,12 +307,12 @@ export class PusherUtils {
   }
 
   // Sanitize data for Pusher
-  static sanitizeData(data: any): any {
+  static sanitizeData(data: unknown): unknown {
     if (typeof data === 'string') {
       return data.substring(0, 1000); // Limit string length
     }
     if (typeof data === 'object' && data !== null) {
-      const sanitized: any = {};
+      const sanitized: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
         if (typeof key === 'string' && key.length <= 50) {
           sanitized[key] = this.sanitizeData(value);
@@ -325,7 +327,7 @@ export class PusherUtils {
   static async triggerEvent(
     channel: string,
     event: string,
-    data: any
+    data: unknown
   ): Promise<void> {
     try {
       if (!this.validateChannelName(channel)) {
@@ -359,7 +361,7 @@ export class PusherUtils {
   static subscribeToChannel(
     pusherClient: PusherClient,
     channelName: string,
-    eventHandlers: Record<string, (data: any) => void>
+    eventHandlers: Record<string, (data: unknown) => void>
   ): void {
     try {
       if (!this.validateChannelName(channelName)) {

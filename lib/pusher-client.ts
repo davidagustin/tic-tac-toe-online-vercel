@@ -68,14 +68,16 @@ export async function initializePusherClient(): Promise<PusherClient> {
       console.log('Pusher client: Disconnected');
     });
 
-    pusherClient.connection.bind('error', (error: any) => {
+    pusherClient.connection.bind('error', (error: unknown) => {
       console.error('Pusher client: Connection error:', error);
-      console.error('Error details:', {
-        code: error.code,
-        data: error.data,
-        message: error.message,
-        type: error.type
-      });
+      if (error && typeof error === 'object' && 'code' in error) {
+        console.error('Error details:', {
+          code: (error as { code?: unknown }).code,
+          data: (error as { data?: unknown }).data,
+          message: (error as { message?: unknown }).message,
+          type: (error as { type?: unknown }).type
+        });
+      }
     });
 
     // Add reconnection event handlers

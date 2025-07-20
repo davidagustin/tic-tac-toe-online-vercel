@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
+import Pusher from 'pusher';
 
 export async function GET() {
   try {
     // Test with the exact same configuration as the working example
-    const Pusher = require('pusher');
     
     const pusher = new Pusher({
       appId: "2024852",

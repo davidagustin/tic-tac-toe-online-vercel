@@ -80,9 +80,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.log('Game created successfully:', data.game);
       setNewGameName('');
       setShowCreateForm(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating game:', error);
-      alert(error.message || 'Failed to create game. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to create game. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -126,9 +126,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       
       // Call the parent callback to handle navigation
       onJoinGame(gameId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error joining game:', error);
-      alert(error.message || 'Failed to join game. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to join game. Please try again.');
     }
   }, [userName, onJoinGame, pusherGames]);
 
