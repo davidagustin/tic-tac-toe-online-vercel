@@ -29,7 +29,7 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
   WINDOW_MS: 60000, // 1 minute
-  MAX_REQUESTS: process.env.NODE_ENV === 'development' ? 1000 : 100, // Higher limit for development
+  MAX_REQUESTS: process.env.NODE_ENV === 'development' ? 200 : 30, // Reduced from 1000/100 to 200/30
 };
 
 function getClientIP(request: NextRequest): string {

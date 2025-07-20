@@ -168,6 +168,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
   const status = getConnectionStatus();
 
+  // Rate limit warning
+  const showRateLimitWarning = reconnectAttempts > 1;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       {/* Connection Status */}
@@ -196,8 +199,14 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
               disabled={isConnecting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isConnecting ? 'Connecting...' : 'Reconnect'}
+              Reconnect
             </button>
+          )}
+          
+          {showRateLimitWarning && (
+            <div className="text-sm text-orange-300 bg-orange-500/20 px-3 py-1 rounded-full">
+              ⚠️ Rate limit approaching
+            </div>
           )}
         </div>
         

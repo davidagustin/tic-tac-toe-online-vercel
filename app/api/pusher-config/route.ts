@@ -1,56 +1,76 @@
 import { NextResponse } from 'next/server';
+import { RateLimiter } from '@/lib/security';
 
-// Environment detection
-const getEnvironment = () => {
-  // Check for custom environment variable first
-  if (process.env.APP_ENV) {
-    return process.env.APP_ENV;
+export async function GET(request: Request) {
+  try {
+    // Get client IP for rate limiting
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
+    
+    // Check rate limit
+    if (!RateLimiter.checkRateLimit(ip, 10)) { // 10 requests per minute for config
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': '60',
+            'X-RateLimit-Limit': '10',
+            'X-RateLimit-Remaining': '0'
+          }
+        }
+      );
+    }
+
+    const environment = process.env.APP_ENV || 'development';
+    
+    let pusherConfig;
+    
+    switch (environment) {
+      case 'production':
+        pusherConfig = {
+          key: process.env.PUSHER_KEY_PRODUCTION,
+          cluster: process.env.PUSHER_CLUSTER_PRODUCTION,
+        };
+        break;
+      case 'staging':
+        pusherConfig = {
+          key: process.env.PUSHER_KEY_STAGING,
+          cluster: process.env.PUSHER_CLUSTER_STAGING,
+        };
+        break;
+      default: // development
+        pusherConfig = {
+          key: process.env.PUSHER_KEY,
+          cluster: process.env.PUSHER_CLUSTER,
+        };
+    }
+
+    if (!pusherConfig.key || !pusherConfig.cluster) {
+      return NextResponse.json(
+        { error: 'Pusher configuration not available' },
+        { status: 500 }
+      );
+    }
+
+    // Get rate limit info
+    const rateLimitInfo = RateLimiter.getRateLimitInfo(ip);
+    const headers: Record<string, string> = {
+      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+    };
+
+    if (rateLimitInfo) {
+      headers['X-RateLimit-Limit'] = '10';
+      headers['X-RateLimit-Remaining'] = rateLimitInfo.remaining.toString();
+      headers['X-RateLimit-Reset'] = rateLimitInfo.resetTime.toString();
+    }
+
+    return NextResponse.json(pusherConfig, { headers });
+  } catch (error) {
+    console.error('Error in pusher-config:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-  return process.env.NODE_ENV || 'development';
-};
-
-// Get environment-specific Pusher configuration
-const getPusherConfig = () => {
-  const env = getEnvironment();
-  
-  // Environment-specific variable names
-  const config: Record<string, {
-    PUSHER_APP_ID: string | undefined;
-    PUSHER_KEY: string | undefined;
-    PUSHER_SECRET: string | undefined;
-    PUSHER_CLUSTER: string | undefined;
-  }> = {
-    development: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_DEV || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_DEV || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_DEV || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_DEV || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-    staging: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_STAGING || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_STAGING || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_STAGING || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_STAGING || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-    production: {
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID_PROD || process.env.PUSHER_APP_ID,
-      PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY_PROD || process.env.NEXT_PUBLIC_PUSHER_KEY,
-      PUSHER_SECRET: process.env.PUSHER_SECRET_PROD || process.env.PUSHER_SECRET,
-      PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER_PROD || process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    },
-  };
-
-  return config[env] || config.development;
-};
-
-export async function GET() {
-  const currentEnv = getEnvironment();
-  const pusherConfig = getPusherConfig();
-  
-  return NextResponse.json({
-    environment: currentEnv,
-    key: pusherConfig.PUSHER_KEY,
-    cluster: pusherConfig.PUSHER_CLUSTER,
-    timestamp: new Date().toISOString(),
-  });
 } 

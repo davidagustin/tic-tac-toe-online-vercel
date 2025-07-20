@@ -10,8 +10,8 @@ const SECURITY_CONFIG = {
   MAX_USERNAME_LENGTH: 50,
   MAX_GAME_NAME_LENGTH: 100,
   RATE_LIMIT_WINDOW: 60000, // 1 minute
-  RATE_LIMIT_MAX_REQUESTS: 100,
-  PUSHER_RATE_LIMIT_MAX: 50,
+  RATE_LIMIT_MAX_REQUESTS: 30, // Reduced from 100 to 30 requests per minute
+  PUSHER_RATE_LIMIT_MAX: 20, // Reduced from 50 to 20 Pusher requests per minute
   ALLOWED_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?@#$%^&*()+=:;"'<>[\]{}|\\/~`]+$/,
   ALLOWED_USERNAME_CHARACTERS: /^[a-zA-Z0-9\s\-_]+$/,
   ALLOWED_GAME_NAME_CHARACTERS: /^[a-zA-Z0-9\s\-_.,!?()]+$/,

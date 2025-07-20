@@ -6,10 +6,10 @@ import type { Channel } from 'pusher-js';
 import Pusher from 'pusher-js';
 
 const CONNECTION_TIMEOUT = 10000; // 10 seconds
-const RECONNECT_DELAY = 5000; // 5 seconds minimum
-const MAX_RECONNECT_ATTEMPTS = 5;
-const POLLING_INTERVAL = 15000; // 15 seconds (increased from 2-3 seconds)
-const EXPONENTIAL_BACKOFF_BASE = 2000; // 2 seconds base
+const RECONNECT_DELAY = 10000; // Increased from 5 to 10 seconds minimum
+const MAX_RECONNECT_ATTEMPTS = 3; // Reduced from 5 to 3 attempts
+const POLLING_INTERVAL = 30000; // Increased from 15 to 30 seconds
+const EXPONENTIAL_BACKOFF_BASE = 5000; // Increased from 2 to 5 seconds base
 
 export function usePusher() {
   const [pusher, setPusher] = useState<Pusher | null>(null);
@@ -32,6 +32,10 @@ export function usePusher() {
   const pusherClientRef = useRef<any>(null);
   const connectionAttemptRef = useRef<boolean>(false);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastApiCallRef = useRef<number>(0);
+  const apiCallDebounceMs = 1000; // 1 second debounce between API calls
+  const configCacheRef = useRef<{ config: any; timestamp: number } | null>(null);
+  const configCacheTimeout = 5 * 60 * 1000; // 5 minutes cache
 
   // Exponential backoff calculation
   const getReconnectDelay = useCallback((attempts: number) => {
@@ -40,6 +44,18 @@ export function usePusher() {
       30000 // Max 30 seconds
     );
     return delay;
+  }, []);
+
+  // Debounced API call to prevent rate limiting
+  const debouncedApiCall = useCallback(async (apiFunction: () => Promise<any>) => {
+    const now = Date.now();
+    if (now - lastApiCallRef.current < apiCallDebounceMs) {
+      console.log('API call debounced, waiting...');
+      return null;
+    }
+    
+    lastApiCallRef.current = now;
+    return apiFunction();
   }, []);
 
   // Debounced connection to prevent race conditions
@@ -71,13 +87,88 @@ export function usePusher() {
     try {
       console.log('Attempting to connect to Pusher...');
       
-      // Get fresh config to avoid stale credentials
-      const response = await fetch('/api/pusher-config');
-      if (!response.ok) {
-        throw new Error('Failed to get Pusher config');
+      // Check cache first
+      const now = Date.now();
+      if (configCacheRef.current && (now - configCacheRef.current.timestamp) < configCacheTimeout) {
+        console.log('Using cached Pusher config');
+        const config = configCacheRef.current.config;
+        
+        if (!config.key || !config.cluster) {
+          throw new Error('Invalid cached Pusher configuration');
+        }
+        
+        // Create new Pusher instance with cached config
+        const newPusher = new Pusher(config.key, {
+          cluster: config.cluster,
+          forceTLS: true,
+        });
+        
+        // Set up connection event handlers
+        newPusher.connection.bind('connecting', () => {
+          console.log('Pusher connecting...');
+        });
+
+        newPusher.connection.bind('connected', () => {
+          console.log('Pusher connected successfully');
+          setIsConnected(true);
+          setIsInitializing(false);
+          setConnectionError(null);
+          setIsFallbackMode(false);
+          setReconnectAttempts(0);
+          setIsConnecting(false);
+        });
+
+        newPusher.connection.bind('disconnected', () => {
+          console.log('Pusher disconnected');
+          setIsConnected(false);
+          setIsConnecting(false);
+        });
+
+        newPusher.connection.bind('error', (error: any) => {
+          console.log('Pusher connection error:', error);
+          setConnectionError(error.message || 'Connection failed');
+          setIsConnecting(false);
+          
+          // Increment reconnect attempts
+          setReconnectAttempts(prev => prev + 1);
+          
+          // Schedule reconnection with exponential backoff
+          const delay = getReconnectDelay(reconnectAttempts + 1);
+          console.log(`Scheduling reconnection in ${delay}ms (attempt ${reconnectAttempts + 1})`);
+          
+          setTimeout(() => {
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+              connect();
+            } else {
+              setIsFallbackMode(true);
+            }
+          }, delay);
+        });
+
+        setPusher(newPusher);
+        return;
       }
       
-      const config = await response.json();
+      // Get fresh config to avoid stale credentials with debouncing
+      const configResponse = await debouncedApiCall(async () => {
+        const response = await fetch('/api/pusher-config');
+        if (!response.ok) {
+          throw new Error('Failed to get Pusher config');
+        }
+        return response.json();
+      });
+      
+      if (!configResponse) {
+        throw new Error('API call debounced');
+      }
+      
+      const config = configResponse;
+      
+      // Cache the config
+      configCacheRef.current = {
+        config,
+        timestamp: now
+      };
       
       if (!config.key || !config.cluster) {
         throw new Error('Invalid Pusher configuration');
