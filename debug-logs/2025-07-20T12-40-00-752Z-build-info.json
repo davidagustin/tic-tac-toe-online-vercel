@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-07-20T12:40:04.010Z",
+  "branch": "main",
+  "lastCommit": "cc8da461d05bc8be287ec9644f22efab48f4953b fix: remove problematic font preload causing 404 errors 2025-07-20 05:37:24 -0700",
+  "recentCommits": [
+    "cc8da46 fix: remove problematic font preload causing 404 errors",
+    "c94f463 fix: add error boundaries and safe Pusher loading to prevent client-side exceptions",
+    "74d576b feat: comprehensive mobile E2E testing with Appium",
+    "ec1afee feat: comprehensive mobile compatibility improvements",
+    "7f85489 feat: add mobile optimizations for better cellphone experience",
+    "3e453ca fix: simplify game storage to prioritize in-memory with database backup",
+    "69d114f fix: implement database-backed game storage to resolve 'failed to join game' issue",
+    "7ed43d7 feat: major cleanup and codebase optimization",
+    "be2e85e feat: add final comprehensive complete game flow test",
+    "c91cffa feat: add comprehensive E2E tests for complete game flow"
+  ],
+  "uncommittedChanges": [
+    "M package.json",
+    "?? debug-logs/",
+    "?? scripts/cat-logs.sh"
+  ],
+  "nodeVersion": "v24.2.0",
+  "platform": "darwin"
+}

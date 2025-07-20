@@ -58,28 +58,30 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     if (currentGame && currentGame.id === gameId) {
       console.log('✅ Game Component: Game data matched, updating board and UI');
 
-      // Convert flat board array to 2D array
-      const newBoard: BoardState = [
-        [currentGame.board[0], currentGame.board[1], currentGame.board[2]],
-        [currentGame.board[3], currentGame.board[4], currentGame.board[5]],
-        [currentGame.board[6], currentGame.board[7], currentGame.board[8]]
-      ];
-      setBoard(newBoard);
+      // Convert flat board array to 2D array - with safety check
+      if (currentGame.board && Array.isArray(currentGame.board) && currentGame.board.length === 9) {
+        const newBoard: BoardState = [
+          [currentGame.board[0], currentGame.board[1], currentGame.board[2]],
+          [currentGame.board[3], currentGame.board[4], currentGame.board[5]],
+          [currentGame.board[6], currentGame.board[7], currentGame.board[8]]
+        ];
+        setBoard(newBoard);
+      }
 
       // Update game message based on status
       if (currentGame.status === 'finished') {
         if (currentGame.winner) {
           // Get the winner's username based on their symbol
           const winnerIndex = currentGame.winner === 'X' ? 0 : 1;
-          const winnerName = currentGame.players[winnerIndex] || currentGame.winner;
+          const winnerName = (currentGame.players && currentGame.players[winnerIndex]) || currentGame.winner;
           setGameMessage(`${winnerName} wins!`);
         } else {
           setGameMessage("It's a draw!");
         }
       } else if (currentGame.status === 'playing') {
         const currentPlayerName = currentGame.currentPlayer === 'X'
-          ? currentGame.players[0]
-          : currentGame.players[1];
+          ? (currentGame.players && currentGame.players[0]) || 'Player X'
+          : (currentGame.players && currentGame.players[1]) || 'Player O';
         setGameMessage(`${currentPlayerName}'s turn`);
       } else {
         setGameMessage('Waiting for players...');
@@ -118,21 +120,21 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   );
 
   const isMyTurn = useMemo(() => {
-    if (!currentGame || currentGame.status !== 'playing') return false;
+    if (!currentGame || currentGame.status !== 'playing' || !currentGame.players) return false;
     const playerIndex = currentGame.players.indexOf(userName);
     return playerIndex === 0 ? currentGame.currentPlayer === 'X' : currentGame.currentPlayer === 'O';
   }, [currentGame, userName]);
 
   // Get current player name
   const getCurrentPlayerName = useMemo(() => {
-    if (!currentGame || !currentGame.currentPlayer) return 'Unknown';
+    if (!currentGame || !currentGame.currentPlayer || !currentGame.players) return 'Unknown';
     const playerIndex = currentGame.currentPlayer === 'X' ? 0 : 1;
     return currentGame.players[playerIndex] || 'Unknown';
   }, [currentGame]);
 
   // Get my player symbol
   const getMyPlayerSymbol = useMemo(() => {
-    if (!currentGame) return null;
+    if (!currentGame || !currentGame.players) return null;
     const playerIndex = currentGame.players.indexOf(userName);
     return playerIndex === 0 ? 'X' : 'O';
   }, [currentGame, userName]);
@@ -289,7 +291,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           <div className="card text-center">
             <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Players</h3>
             <div className="space-y-2">
-              {currentGame.players.map((player, index) => (
+              {(currentGame.players || []).map((player, index) => (
                 <div key={player} className="flex items-center justify-center space-x-2 mobile-text">
                   <span className="text-purple-300">{index === 0 ? 'X' : 'O'}:</span>
                   <span className="text-white font-medium truncate">{player}</span>

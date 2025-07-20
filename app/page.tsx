@@ -2,6 +2,7 @@
 
 import Game from '@/components/Game';
 import Lobby from '@/components/Lobby';
+import { usePusher } from '@/hooks/usePusher';
 import React, { useEffect, useState } from 'react';
 
 // Client-only wrapper to prevent hydration issues
@@ -54,47 +55,31 @@ class PusherErrorBoundary extends React.Component<
 
 // Safe Pusher hook with fallback
 function useSafePusher() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  try {
+    // Use the real Pusher hook
+    return usePusher();
+  } catch (error) {
+    console.error('Pusher hook error:', error);
 
-  // Try to dynamically import the Pusher hook
-  useEffect(() => {
-    let mounted = true;
-
-    const loadPusher = async () => {
-      try {
-        // Dynamic import to catch any import-time errors
-        const { usePusher } = await import('@/hooks/usePusher');
-
-        // This is a simplified fallback - in a real implementation
-        // you'd want to properly manage the Pusher hook state
-        if (mounted) {
-          setIsConnected(false); // Default to offline mode for safety
-        }
-      } catch (error) {
-        console.error('Failed to load Pusher hook:', error);
-        if (mounted) {
-          setError(error instanceof Error ? error.message : 'Pusher initialization failed');
-          setIsConnected(false);
-        }
-      }
+    // Return fallback values
+    return {
+      pusher: null,
+      isConnected: false,
+      isInitializing: false,
+      connectionError: 'Connection failed',
+      reconnectAttempts: 0,
+      connect: () => { },
+      disconnect: () => { },
+      joinGame: async () => { },
+      leaveGame: () => { },
+      subscribeToLobby: () => { },
+      games: [],
+      currentGame: null,
+      chatMessages: [],
+      playerStats: null,
+      clearGames: () => console.log('🧹 Clearing games (fallback)'),
     };
-
-    loadPusher();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Return safe defaults
-  return {
-    isConnected,
-    error,
-    clearGames: () => {
-      console.log('🧹 Safe clearGames called');
-    }
-  };
+  }
 }
 
 interface User {
@@ -116,49 +101,20 @@ export default function Home() {
   // Use safe Pusher hook with error handling
   const { isConnected, clearGames } = useSafePusher();
 
-  // Global cleanup function for debugging
+  // Simplified cleanup for debugging  
   useEffect(() => {
-    // Add global cleanup function to window for debugging
     (window as Window & { clearAllGames?: () => Promise<void> }).clearAllGames = async () => {
       console.log('🧹 Global cleanup triggered...');
-
-      // Clear Pusher games state
       try {
         clearGames();
+        localStorage.removeItem('ticTacToeUser');
+        localStorage.removeItem('currentUser');
+        sessionStorage.clear();
+        window.location.reload();
       } catch (error) {
-        console.error('Error clearing games:', error);
+        console.error('Cleanup error:', error);
       }
-
-      // Clear localStorage
-      localStorage.removeItem('ticTacToeUser');
-      localStorage.removeItem('currentUser');
-
-      // Clear sessionStorage
-      sessionStorage.clear();
-
-      // Call backend cleanup
-      try {
-        await fetch('/api/clear-db', { method: 'POST' });
-        console.log('✅ Backend cleared');
-      } catch (error) {
-        console.log('⚠️ Backend cleanup failed:', error);
-      }
-
-      // Force page reload
-      window.location.reload();
     };
-
-    // Add function to check current state
-    (window as Window & { checkGameState?: () => void }).checkGameState = () => {
-      console.log('📊 Current game state:');
-      console.log('- localStorage ticTacToeUser:', localStorage.getItem('ticTacToeUser'));
-      console.log('- localStorage currentUser:', localStorage.getItem('currentUser'));
-      console.log('- sessionStorage keys:', Object.keys(sessionStorage));
-    };
-
-    console.log('🔧 Debug functions available:');
-    console.log('- clearAllGames() - Clear all games and reload');
-    console.log('- checkGameState() - Check current storage state');
   }, [clearGames]);
 
   // Load user from localStorage on component mount

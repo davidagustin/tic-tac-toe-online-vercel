@@ -1,0 +1,26 @@
+[
+  {
+    "endpoint": "/api/health-check",
+    "httpStatus": "503",
+    "body": "{\"status\":\"unhealthy\",\"timestamp\":\"2025-07-20T12:40:01.689Z\",\"uptime\":11.6412812,\"environment\":\"production\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"status\":\"healthy\",\"latency\":96},\"pusher\":{\"status\":\"unhealthy\",\"error\":\"Unexpected status code 400\"},\"memory\":{\"status\":\"healthy\",\"usage\":{\"rss\":87,\"heapTotal\":28,\"heapUsed\":20,\"external\":3}}},\"responseTime\":356,\"summary\":{\"total\":3,\"healthy\":2,\"unhealthy\":1}}",
+    "timestamp": "2025-07-20T12:40:02.090Z"
+  },
+  {
+    "endpoint": "/api/pusher-config",
+    "httpStatus": "200",
+    "body": "{\"key\":\"6edc701eea0995ce201c\",\"cluster\":\"us3\"}",
+    "timestamp": "2025-07-20T12:40:02.451Z"
+  },
+  {
+    "endpoint": "/api/game/list",
+    "httpStatus": "200",
+    "body": "[]",
+    "timestamp": "2025-07-20T12:40:02.994Z"
+  },
+  {
+    "endpoint": "/",
+    "httpStatus": "200",
+    "body": "<!DOCTYPE html><!--aMc6Q7wQUSjNu0xKg68tF--><html lang=\"en\" class=\"__variable_5cfdac __variable_9a8899\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no\"/><link rel=\"preload\" href=\"/_next/static/media/569ce4b8f30dc480-s.p.woff2\" as=\"font\" crossorigin=\"\" type=\"font/woff2\"/><link rel=\"preload\" hr",
+    "timestamp": "2025-07-20T12:40:03.939Z"
+  }
+]
