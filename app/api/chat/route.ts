@@ -29,11 +29,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save message' }, { status: 500 });
     }
 
+    const messageObj = savedMessage as { id: string; timestamp: string };
     const message = {
-      id: savedMessage.id,
+      id: messageObj.id,
       text,
       user_name: userName,
-      timestamp: savedMessage.timestamp
+      timestamp: messageObj.timestamp
     };
 
     // Trigger Pusher event
