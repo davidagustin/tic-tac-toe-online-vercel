@@ -12,13 +12,11 @@ export function usePusher() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isUsingFallback, setIsUsingFallback] = useState(false);
   
   const lobbyChannel = useRef<Channel | null>(null);
   const gameChannel = useRef<Channel | null>(null);
   const userChannel = useRef<Channel | null>(null);
   const pusherClientRef = useRef<any>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const connectionAttemptRef = useRef<boolean>(false);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -47,7 +45,6 @@ export function usePusher() {
         setIsConnected(true);
         setLastError(null);
         setIsInitializing(false);
-        setIsUsingFallback(false);
         connectionAttemptRef.current = false;
         return;
       }
@@ -65,7 +62,6 @@ export function usePusher() {
         setIsConnected(true);
         setLastError(null);
         setIsInitializing(false);
-        setIsUsingFallback(false); // Clear fallback status when connected
         
         // Clear connection attempt flag
         connectionAttemptRef.current = false;
@@ -80,12 +76,6 @@ export function usePusher() {
       pusherClient.connection.bind('disconnected', () => {
         console.log('Pusher disconnected');
         setIsConnected(false);
-        // Start fallback immediately when disconnected
-        if (!isUsingFallback) {
-          console.log('Starting fallback due to disconnection...');
-          loadGamesFromAPI();
-          startPolling();
-        }
       });
 
       pusherClient.connection.bind('error', (error: any) => {
@@ -101,21 +91,12 @@ export function usePusher() {
         
         // Clear connection attempt flag
         connectionAttemptRef.current = false;
-        
-        // If connection fails, start fallback immediately
-        if (!isUsingFallback) {
-          console.log('Starting fallback due to connection error...');
-          loadGamesFromAPI();
-          startPolling();
-        }
       });
 
       // Set a timeout for connection
       connectionTimeoutRef.current = setTimeout(() => {
-        if (!isConnected && !isUsingFallback) {
-          console.log('Pusher connection timeout, starting fallback...');
-          loadGamesFromAPI();
-          startPolling();
+        if (!isConnected) {
+          console.log('Pusher connection timeout');
         }
         connectionAttemptRef.current = false;
       }, 5000); // Increased timeout to 5 seconds
@@ -170,13 +151,6 @@ export function usePusher() {
       
       // Clear connection attempt flag
       connectionAttemptRef.current = false;
-      
-      // If Pusher initialization fails, start fallback immediately
-      if (!isUsingFallback) {
-        console.log('Pusher initialization failed, starting fallback...');
-        loadGamesFromAPI();
-        startPolling();
-      }
     }
   }, [currentGame]);
 
@@ -324,81 +298,7 @@ export function usePusher() {
     }
   }, []);
 
-  // Fallback: Load games from API if Pusher fails
-  const loadGamesFromAPI = useCallback(async () => {
-    try {
-      const response = await fetch('/api/game/list');
-      if (response.ok) {
-        const gamesData = await response.json();
-        setGames(gamesData);
-      }
-    } catch (error) {
-      console.error('Failed to load games from API:', error);
-    }
-  }, []);
 
-  // Set up polling as fallback when Pusher fails
-  const startPolling = useCallback(() => {
-    // Clear any existing polling interval
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    
-    console.log('Starting API polling as Pusher fallback...');
-    setIsUsingFallback(true);
-    
-    let retryCount = 0;
-    const maxRetries = 3;
-    const baseInterval = 10000; // Start with 10 seconds
-    
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch('/api/game/list');
-        
-        if (response.status === 429) {
-          // Rate limited - increase interval exponentially
-          retryCount++;
-          console.log(`Rate limited (${retryCount}/${maxRetries}). Backing off...`);
-          
-          if (retryCount >= maxRetries) {
-            console.log('Max retries reached. Stopping polling.');
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current);
-              pollIntervalRef.current = null;
-            }
-            return;
-          }
-          
-          // Exponential backoff: 10s, 20s, 40s
-          const newInterval = baseInterval * Math.pow(2, retryCount);
-          console.log(`Backing off to ${newInterval}ms interval`);
-          return;
-        }
-        
-        if (response.ok) {
-          const gamesData = await response.json();
-          setGames(gamesData);
-          retryCount = 0; // Reset retry count on success
-        } else {
-          console.error('Polling failed with status:', response.status);
-        }
-      } catch (error) {
-        console.error('Polling failed:', error);
-        retryCount++;
-        
-        if (retryCount >= maxRetries) {
-          console.log('Max retries reached. Stopping polling.');
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-        }
-      }
-    }, baseInterval); // Poll every 10 seconds initially
-    
-    return pollIntervalRef.current;
-  }, []);
 
   // Initialize connection on mount
   useEffect(() => {
@@ -407,22 +307,13 @@ export function usePusher() {
       connect();
     }
 
-    // Try to load games after a delay if not connected
+    // Check connection status after a delay
     const timeout = setTimeout(() => {
       console.log('Checking connection status after timeout...', { isConnected, isInitializing });
-      if (!isConnected && !isUsingFallback) {
-        console.log('Pusher not connected, loading games from API...');
-        loadGamesFromAPI();
-        startPolling();
-      }
     }, 6000); // Increased timeout to 6 seconds to allow connection to establish
 
     return () => {
       clearTimeout(timeout);
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current);
         connectionTimeoutRef.current = null;
@@ -434,7 +325,6 @@ export function usePusher() {
   return {
     isConnected,
     isInitializing,
-    isUsingFallback,
     lastError,
     games,
     currentGame,

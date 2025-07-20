@@ -38,7 +38,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
-  const { isConnected, leaveGame, isInitializing, isUsingFallback, lastError } = usePusher();
+  const { isConnected, leaveGame, isInitializing, lastError } = usePusher();
 
   // Load user from localStorage on component mount
   useEffect(() => {
@@ -257,10 +257,9 @@ export default function Home() {
         {/* Debug Component */}
         {process.env.NODE_ENV === 'development' && (
           <>
-            <PusherDebug 
+                        <PusherDebug 
               isConnected={isConnected} 
               isInitializing={isInitializing} 
-              isUsingFallback={isUsingFallback} 
               lastError={lastError} 
             />
             

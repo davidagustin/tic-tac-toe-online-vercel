@@ -19,14 +19,14 @@ interface ChatRoomProps {
 }
 
 export default function ChatRoom({ userName, title, description, theme, icon }: ChatRoomProps) {
-  const { isConnected, isUsingFallback, chatMessages } = usePusher();
+  const { isConnected, chatMessages } = usePusher();
   const [text, setText] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Determine if chat is available (either connected or in fallback mode)
-  const isChatAvailable = isConnected || isUsingFallback;
+  // Determine if chat is available (only when connected)
+  const isChatAvailable = isConnected;
   
   // Use Pusher messages if connected, otherwise use local messages
   const displayMessages = isConnected ? chatMessages : localMessages;
@@ -84,7 +84,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
           throw new Error('Failed to send message');
         }
       } else {
-        // Add message locally for fallback mode
+        // Add message locally when not connected
         const newMessage: Message = {
           id: Date.now(),
           text: text.trim(),
@@ -226,9 +226,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
           <span className="font-medium">
             {isConnected 
               ? 'Connected to chat' 
-              : isUsingFallback 
-                ? 'Using fallback mode' 
-                : 'Disconnected from chat'
+              : 'Disconnected from chat'
             }
           </span>
         </div>

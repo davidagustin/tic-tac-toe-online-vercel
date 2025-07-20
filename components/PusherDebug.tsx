@@ -5,11 +5,10 @@ import { useState } from 'react';
 interface PusherDebugProps {
   isConnected: boolean;
   isInitializing: boolean;
-  isUsingFallback: boolean;
   lastError: string | null;
 }
 
-export function PusherDebug({ isConnected, isInitializing, isUsingFallback, lastError }: PusherDebugProps) {
+export function PusherDebug({ isConnected, isInitializing, lastError }: PusherDebugProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const handleErrorClick = () => {
@@ -25,7 +24,7 @@ export function PusherDebug({ isConnected, isInitializing, isUsingFallback, last
       <div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg text-xs max-w-xs">
         <h3 className="font-bold mb-2">Pusher Debug Info</h3>
         <div className="space-y-1">
-          <div>Status: {isConnected ? '🟢 Connected' : isUsingFallback ? '🟡 Fallback' : '🔴 Disconnected'}</div>
+          <div>Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
           <div>Initializing: {isInitializing ? 'Yes' : 'No'}</div>
           {lastError && (
             <div className="text-red-300 cursor-pointer" onClick={handleErrorClick}>

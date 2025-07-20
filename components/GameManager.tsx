@@ -10,7 +10,7 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, isUsingFallback, games: pusherGames, reconnect } = usePusher();
+  const { isConnected, games: pusherGames, reconnect } = usePusher();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -215,7 +215,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           </div>
         </div>
 
-        {!isConnected && !isUsingFallback && (
+        {!isConnected && (
           <div className="text-center py-8">
             <div className="text-red-400 mb-2">⚠️ Not connected to server</div>
             <p className="text-purple-200 mb-4">Please wait for connection to load games...</p>
@@ -256,21 +256,14 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           </div>
         )}
 
-        {isUsingFallback && (
-          <div className="text-center py-8">
-            <div className="text-yellow-400 mb-2">🔄 Using fallback mode</div>
-            <p className="text-purple-200">Real-time updates are disabled, but you can still play games!</p>
-          </div>
-        )}
-
-        {(isConnected || isUsingFallback) && filteredGames.length === 0 && (
+        {isConnected && filteredGames.length === 0 && (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🎮</div>
             <p className="text-purple-200">No games available. Create one to get started!</p>
           </div>
         )}
 
-        {(isConnected || isUsingFallback) && filteredGames.length > 0 && (
+        {isConnected && filteredGames.length > 0 && (
           <div className="grid gap-4">
             {filteredGames.map((game) => (
               <div
