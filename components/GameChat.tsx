@@ -17,7 +17,6 @@ export default function GameChat({ userName, gameId, title, description, theme, 
   const { isConnected, chatMessages } = usePusher();
   const [text, setText] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -25,20 +24,6 @@ export default function GameChat({ userName, gameId, title, description, theme, 
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, []);
-
-  const getMessages = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      // For now, we'll use an empty array since this is real-time chat
-      // In a real app, you might want to fetch recent messages from a database
-      setMessages([]);
-      setTimeout(scrollToBottom, 100);
-    } catch (error) {
-      console.error('Error fetching game chat messages:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [scrollToBottom]);
 
   // Update messages when chatMessages from Pusher changes
   useEffect(() => {
@@ -135,14 +120,7 @@ export default function GameChat({ userName, gameId, title, description, theme, 
             ref={chatContainerRef}
             className="bg-white/10 backdrop-blur-lg rounded-xl p-4 h-80 sm:h-96 overflow-y-auto shadow-inner border border-white/20 scroll-smooth"
           >
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${config.loading} mx-auto mb-2`}></div>
-                  <p className="text-purple-200">Loading game chat...</p>
-                </div>
-              </div>
-            ) : messages.length === 0 ? (
+            {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <div className="text-4xl mb-3">{icon}</div>

@@ -87,10 +87,6 @@ export function usePusher() {
       const newPusher = new Pusher(config.key, {
         cluster: config.cluster,
         forceTLS: true,
-        timeout: CONNECTION_TIMEOUT,
-        // Add connection limits
-        maxReconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-        maxReconnectGap: 30000, // 30 seconds max gap
       });
 
       // Set up connection event handlers
@@ -411,6 +407,10 @@ export function usePusher() {
     joinGame,
     leaveGame,
     subscribeToUser,
+    chatMessages,
+    games,
+    currentGame,
+    playerStats,
   };
 }
 

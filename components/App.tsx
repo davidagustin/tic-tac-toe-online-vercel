@@ -17,15 +17,9 @@ interface GameState {
   name: string;
 }
 
-interface LobbyProps {
-  userName: string;
-  onJoinGame?: (gameId: string) => void;
-}
-
 export default function App() {
   const [view, setView] = useState<'lobby' | 'game'>('lobby');
   const [user, setUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [showAuth, setShowAuth] = useState<boolean>(true); // Force auth to show
   const [currentGame, setCurrentGame] = useState<GameState | null>(null);
 
@@ -55,7 +49,6 @@ export default function App() {
     // In a real app, you'd validate against a database
     const userData = { username, password };
     setUser(userData);
-    setIsLoggedIn(true);
     setShowAuth(false);
     localStorage.setItem('ticTacToeUser', JSON.stringify(userData));
   };
@@ -65,14 +58,12 @@ export default function App() {
     // In a real app, you'd create a new user in the database
     const userData = { username, password };
     setUser(userData);
-    setIsLoggedIn(true);
     setShowAuth(false);
     localStorage.setItem('ticTacToeUser', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setUser(null);
-    setIsLoggedIn(false);
     setShowAuth(true);
     setCurrentGame(null);
     localStorage.removeItem('ticTacToeUser');

@@ -58,7 +58,7 @@ export default function Auth({ onLogin, onRegister }: AuthProps) {
       } else {
         onRegister(username.trim(), password);
       }
-    } catch (err) {
+    } catch {
       setError('Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);

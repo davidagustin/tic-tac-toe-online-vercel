@@ -122,7 +122,6 @@ export class SecurityValidator {
 export class RateLimiter {
   static checkRateLimit(identifier: string, maxRequests: number = SECURITY_CONFIG.RATE_LIMIT_MAX_REQUESTS): boolean {
     const now = Date.now();
-    const windowStart = now - SECURITY_CONFIG.RATE_LIMIT_WINDOW;
 
     const current = rateLimitStore.get(identifier);
     

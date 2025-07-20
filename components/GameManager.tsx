@@ -15,7 +15,6 @@ interface GameManagerProps {
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
   const { isConnected, isInitializing, connectionError, isFallbackMode, reconnectAttempts, isConnecting, connect: manualReconnect } = usePusher();
   const [games, setGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +29,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           const gamesData = await response.json();
           setGames(gamesData);
         }
-      } catch (error) {
+      } catch {
         console.error('Failed to load games');
       }
     };

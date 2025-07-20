@@ -4,23 +4,6 @@ import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
 // In-memory storage for games (in production, you'd use a database)
 const games = new Map();
 
-// Helper function to check for winner
-function checkWinner(board: (string | null)[]) {
-  const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-    [0, 4, 8], [2, 4, 6] // diagonals
-  ];
-  
-  for (const line of lines) {
-    const [a, b, c] = line;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
-    }
-  }
-  return null;
-}
-
 // GET /api/games - Get all games
 export async function GET() {
   try {
