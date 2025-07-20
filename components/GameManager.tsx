@@ -249,41 +249,17 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
   const filteredGames = games.filter(game => filter === 'all' || game.status === filter);
 
-  const getConnectionStatus = () => {
-    if (isConnected) {
-      return {
-        text: 'Connected',
-        color: 'text-green-500'
-      };
-    }
-    return { text: 'Disconnected', color: 'text-gray-500' };
-  };
 
-  const status = getConnectionStatus();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
-      {/* Connection Status */}
-      <div className="mb-6 p-4 bg-white bg-opacity-10 backdrop-blur-lg rounded-lg border border-white border-opacity-20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${status.color.replace('text-', 'bg-')}`}></div>
-            <span className={`font-medium ${status.color}`}>
-              {status.text}
-            </span>
-          </div>
-
-
-        </div>
-      </div>
-
+    <div className="space-y-4 sm:space-y-6">
       {/* Create Game Section */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-white">Create New Game</h2>
+      <div className="card">
+        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 sm:mb-6">
+          <h2 className="mobile-heading font-bold text-white">Create New Game</h2>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-400 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-500 transition-all duration-300"
+            className="btn-primary w-full sm:w-auto touch-target"
           >
             {showCreateForm ? 'Cancel' : 'Create Game'}
           </button>
@@ -292,7 +268,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
         {showCreateForm && (
           <form onSubmit={handleCreateGame} className="space-y-4">
             <div>
-              <label htmlFor="gameName" className="block text-sm font-medium text-purple-200 mb-2">
+              <label htmlFor="gameName" className="block mobile-text font-medium text-purple-200 mb-2">
                 Game Name
               </label>
               <input
@@ -301,7 +277,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                 value={newGameName}
                 onChange={(e) => setNewGameName(e.target.value)}
                 placeholder="Enter game name..."
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="input-primary"
                 maxLength={100}
                 disabled={isLoading}
               />
@@ -309,7 +285,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
             <button
               type="submit"
               disabled={isLoading || !newGameName.trim()}
-              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-400 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+              className="btn-primary w-full"
             >
               {isLoading ? 'Creating...' : 'Create Game'}
             </button>
@@ -318,75 +294,79 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       </div>
 
       {/* Games List Section */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white">Available Games</h2>
-          <div className="flex space-x-2">
+      <div className="card">
+        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 sm:mb-6">
+          <h2 className="mobile-heading font-bold text-white">Available Games</h2>
+          <div className="flex flex-wrap gap-2">
             {(['all', 'waiting', 'playing'] as const).map((filterOption) => (
               <button
                 key={filterOption}
                 onClick={() => setFilter(filterOption)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 ${filter === filterOption
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white'
-                    : 'bg-white/10 text-purple-200 hover:bg-white/20'
+                className={`px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 touch-target ${filter === filterOption
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white'
+                  : 'bg-white/10 text-purple-200 hover:bg-white/20'
                   }`}
               >
-                {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
+                <span className="hidden sm:inline">{filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}</span>
+                <span className="sm:hidden">
+                  {filterOption === 'all' ? 'All' : filterOption === 'waiting' ? 'Wait' : 'Play'}
+                </span>
               </button>
             ))}
             <button
               onClick={refreshGames}
               disabled={isRefreshing}
-              className="px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 bg-white/10 text-purple-200 hover:bg-white/20"
+              className="px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 bg-white/10 text-purple-200 hover:bg-white/20 touch-target"
             >
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              {isRefreshing ? '🔄' : '🔄'}
             </button>
           </div>
         </div>
 
-        {isConnected && filteredGames.length === 0 && (
+        {filteredGames.length === 0 && (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🎮</div>
-            <p className="text-purple-200">No games available. Create one to get started!</p>
+            <p className="text-purple-200 mobile-text">No games available. Create one to get started!</p>
           </div>
         )}
 
-        {isConnected && filteredGames.length > 0 && (
-          <div className="grid gap-4">
+        {filteredGames.length > 0 && (
+          <div className="space-y-4">
             {filteredGames.map((game) => (
               <div
                 key={game.id}
                 className="bg-white/5 backdrop-blur-lg rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-white">{game.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}>
+                <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-3 mb-2">
+                      <h3 className="text-lg font-semibold text-white truncate">{game.name}</h3>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)} w-fit`}>
                         {getStatusIcon(game.status)} {game.status}
                       </span>
                     </div>
-                    <div className="text-sm text-purple-200">
+                    <div className="mobile-text text-purple-200 space-y-1">
                       <p>Created by: <span className="text-yellow-300">{game.createdBy}</span></p>
                       <p>Players: {game.players.length}/2</p>
-                      <p>Created: {new Date(game.createdAt).toLocaleString()}</p>
+                      <p className="hidden sm:block">Created: {new Date(game.createdAt).toLocaleString()}</p>
+                      <p className="sm:hidden">Created: {new Date(game.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
                     {game.status === 'waiting' && !game.players.includes(userName) && (
                       <button
                         onClick={() => handleJoinGame(game.id)}
-                        className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-medium hover:from-green-700 hover:to-emerald-600 transition-all duration-300"
+                        className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-medium hover:from-green-700 hover:to-emerald-600 transition-all duration-300 touch-target w-full sm:w-auto"
                       >
-                        Join
+                        Join Game
                       </button>
                     )}
                     {game.players.includes(userName) && (
                       <button
                         onClick={() => onJoinGame(game.id)}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-medium hover:from-blue-700 hover:to-cyan-600 transition-all duration-300"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-medium hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 touch-target w-full sm:w-auto"
                       >
-                        Enter
+                        Enter Game
                       </button>
                     )}
                   </div>

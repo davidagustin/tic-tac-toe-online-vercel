@@ -29,7 +29,8 @@
     "cat:api": "./scripts/cat-logs.sh api",
     "cat:live": "./scripts/cat-logs.sh live",
     "logs:summary": "./scripts/cat-logs.sh summary",
-    "logs:search": "./scripts/cat-logs.sh search"
+    "logs:search": "./scripts/cat-logs.sh search",
+    "test:client-errors": "node scripts/test-client-errors.js"
   },
   "dependencies": {
     "axios": "^1.6.2",

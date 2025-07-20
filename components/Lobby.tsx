@@ -62,8 +62,8 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
 
           {/* Connection Status */}
           <div className={`inline-flex items-center px-3 py-2 rounded-full text-sm font-medium ${isConnected
-              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
-              : 'bg-red-500/20 text-red-300 border border-red-400/30'
+            ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+            : 'bg-red-500/20 text-red-300 border border-red-400/30'
             }`}>
             <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'
               }`}></div>
@@ -73,7 +73,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
       </div>
 
       {/* Quick Stats - Mobile Responsive Grid */}
-      <div className="grid mobile-grid gap-4 sm:gap-6 max-w-6xl mx-auto mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto mb-6 sm:mb-8">
         <div className="card text-center">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-purple-600 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
             <span className="text-white text-lg sm:text-xl">🎮</span>
@@ -110,8 +110,8 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
           <button
             onClick={() => setView('games')}
             className={`flex-1 py-2 sm:py-3 px-3 sm:px-6 rounded-xl font-medium transition-all duration-300 text-sm sm:text-base touch-target ${view === 'games'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
-                : 'text-purple-200 hover:text-white hover:bg-white/10'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
+              : 'text-purple-200 hover:text-white hover:bg-white/10'
               }`}
           >
             <span className="hidden sm:inline">🎮 Games</span>
@@ -120,8 +120,8 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
           <button
             onClick={() => setView('chat')}
             className={`flex-1 py-2 sm:py-3 px-3 sm:px-6 rounded-xl font-medium transition-all duration-300 text-sm sm:text-base touch-target ${view === 'chat'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
-                : 'text-purple-200 hover:text-white hover:bg-white/10'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
+              : 'text-purple-200 hover:text-white hover:bg-white/10'
               }`}
           >
             <span className="hidden sm:inline">💬 Chat</span>
@@ -131,7 +131,7 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
       </div>
 
       {/* Content */}
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {view === 'games' ? (
           <GameManager userName={userName} onJoinGame={handleJoinGame} />
         ) : (

@@ -303,7 +303,7 @@ html {
 
   /* Reduce padding on mobile */
   .card {
-    @apply p-4;
+    @apply p-3 sm:p-4;
   }
 
   /* Stack columns on mobile */
@@ -319,6 +319,24 @@ html {
   /* Larger touch targets on mobile */
   .mobile-touch {
     @apply min-h-[48px] min-w-[48px];
+  }
+
+  /* Better mobile layout */
+  .mobile-container {
+    @apply px-3 max-w-full;
+  }
+
+  /* Mobile button improvements */
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply text-sm px-4 py-3;
+  }
+
+  /* Mobile form improvements */
+  .input-primary {
+    @apply text-base;
+    /* Prevent iOS zoom */
   }
 }
 
