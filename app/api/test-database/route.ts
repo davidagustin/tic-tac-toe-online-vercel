@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
     
     if (action === 'test') {
       const result = await query('SELECT NOW() as current_time');
+      const timeResult = result[0] as { current_time: string } | undefined;
       return NextResponse.json({ 
         success: true, 
         message: 'Database connection successful',
-        timestamp: result[0]?.current_time || new Date().toISOString()
+        timestamp: timeResult?.current_time || new Date().toISOString()
       });
     }
     
@@ -34,9 +35,10 @@ export async function GET(request: NextRequest) {
         WHERE table_schema = 'public'
         ORDER BY table_name
       `);
+      const tablesResult = result as { table_name: string }[];
       return NextResponse.json({ 
         success: true, 
-        tables: result.map((row: { table_name: string }) => row.table_name)
+        tables: tablesResult.map((row: { table_name: string }) => row.table_name)
       });
     }
     
