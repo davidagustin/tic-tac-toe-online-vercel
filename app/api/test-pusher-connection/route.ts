@@ -16,24 +16,9 @@ export async function GET() {
     
     console.log('Testing Pusher server connection...');
     
-    // First, try to get app info to validate credentials
-    try {
-      const appInfo = await pusherServer.get({ path: '/apps/me' });
-      console.log('Pusher app info retrieved successfully:', appInfo);
-    } catch (appInfoError) {
-      console.error('Failed to get Pusher app info:', appInfoError);
-      return NextResponse.json({
-        success: false,
-        error: 'Invalid Pusher credentials',
-        details: appInfoError instanceof Error ? appInfoError.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      }, { status: 500 });
-    }
-    
-    // Then try to trigger a test event
-    const result = await pusherServer.trigger('test-channel', 'test-event', {
-      message: 'Test message',
-      timestamp: new Date().toISOString()
+    // Try to trigger the same event as the working example
+    const result = await pusherServer.trigger("my-channel", "my-event", {
+      message: "hello world"
     });
 
     console.log('Pusher server test successful:', result);

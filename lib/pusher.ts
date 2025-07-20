@@ -70,16 +70,13 @@ const createPusherServer = () => {
   });
   
   try {
+    // Use the exact same configuration as the working example
     return new PusherServer({
       appId: serverEnv.PUSHER_APP_ID!,
       key: serverEnv.PUSHER_KEY!,
       secret: serverEnv.PUSHER_SECRET!,
       cluster: serverEnv.PUSHER_CLUSTER!,
       useTLS: true,
-      // Security settings
-      encryptionMasterKeyBase64: process.env.PUSHER_ENCRYPTION_MASTER_KEY,
-      // Additional settings for better compatibility
-      host: `api-${serverEnv.PUSHER_CLUSTER}.pusherapp.com`,
     });
   } catch (error) {
     console.error('Failed to create Pusher server:', error);
