@@ -9,7 +9,7 @@ const securityHeaders = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
-    "connect-src 'self' ws: wss: https://*.pusherapp.com https://*.pusher.com",
+    "connect-src 'self' ws: wss: https://*.pusherapp.com https://*.pusher.com https://*.pusher.com:443",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
@@ -201,6 +201,9 @@ export function middleware(request: NextRequest) {
     '/api/chat',
     '/api/stats',
     '/api/clear-auth',
+    '/api/clear-db',
+    '/api/cleanup-periodic',
+    '/api/pusher/webhook',
     '/api/test-pusher',
     '/api/debug-env',
     '/api/pusher-config',
@@ -208,6 +211,9 @@ export function middleware(request: NextRequest) {
     '/api/check-pusher-app',
     '/api/test-database',
     '/api/test-game-flow',
+    '/api/events',
+    '/api/websocket',
+    '/api/health-check',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)

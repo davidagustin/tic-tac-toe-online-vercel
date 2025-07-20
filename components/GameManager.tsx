@@ -2,10 +2,18 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePusher } from '@/hooks/usePusher';
-import type { Game } from '@/lib/pusher-client';
 
-// Add the missing constant
-const MAX_RECONNECT_ATTEMPTS = 5;
+interface Game {
+  id: string;
+  name: string;
+  players: string[];
+  status: 'waiting' | 'playing' | 'finished';
+  createdBy: string;
+  createdAt: string;
+  board: (string | null)[];
+  currentPlayer: string | null;
+  winner: string | null;
+}
 
 interface GameManagerProps {
   userName: string;
@@ -13,29 +21,50 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, isInitializing, connectionError, isFallbackMode, reconnectAttempts, isConnecting, connect: manualReconnect } = usePusher();
-  const [games, setGames] = useState<Game[]>([]);
+  const { isConnected, games: pusherGames, subscribeToLobby } = usePusher();
+  
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'playing'>('all');
+  const [fallbackGames, setFallbackGames] = useState<Game[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Load games on mount
-  useEffect(() => {
-    const loadGames = async () => {
-      try {
-        const response = await fetch('/api/game/list');
-        if (response.ok) {
-          const gamesData = await response.json();
-          setGames(gamesData);
-        }
-      } catch {
-        console.error('Failed to load games');
+  // Use games from Pusher hook, fallback to local state if Pusher fails
+  const games = pusherGames && pusherGames.length > 0 ? pusherGames : fallbackGames;
+
+  // Manual refresh function
+  const refreshGames = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('🔄 Manually refreshing games from API...');
+      const response = await fetch('/api/game/list');
+      if (response.ok) {
+        const gamesData = await response.json();
+        console.log(`🔄 Refresh - Found ${gamesData.length} games:`, gamesData);
+        setFallbackGames(gamesData);
+      } else {
+        console.log(`🔄 Refresh - API returned ${response.status}`);
       }
-    };
-
-    loadGames();
+    } catch (error) {
+      console.error('🔄 Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, []);
+
+  // Subscribe to lobby when component mounts
+  useEffect(() => {
+    if (isConnected) {
+      console.log('🎮 GameManager: Subscribing to lobby...');
+      subscribeToLobby();
+    }
+  }, [isConnected, subscribeToLobby]);
+
+  // Initial load of games from API
+  useEffect(() => {
+    refreshGames();
+  }, [refreshGames]);
 
   const handleCreateGame = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,15 +112,25 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       }
 
       console.log('Game created successfully:', data.game);
+      console.log('🎮 GameManager: Game creation successful, calling onJoinGame with ID:', data.game.id);
       setNewGameName('');
       setShowCreateForm(false);
+      
+      // Optionally, automatically join the created game
+      if (onJoinGame) {
+        console.log('🎮 GameManager: Calling onJoinGame callback...');
+        onJoinGame(data.game.id);
+        console.log('🎮 GameManager: onJoinGame callback completed');
+      } else {
+        console.log('🎮 GameManager: No onJoinGame callback provided');
+      }
     } catch (error: unknown) {
       console.error('Error creating game:', error);
       alert(error instanceof Error ? error.message : 'Failed to create game. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [newGameName, userName]);
+  }, [newGameName, userName, onJoinGame]);
 
   const handleJoinGame = useCallback(async (gameId: string) => {
     try {
@@ -129,8 +168,10 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
       console.log('Joined game successfully:', data.game);
       
-      // Call the parent callback to handle navigation
-      onJoinGame(gameId);
+      // Navigate to the game
+      if (onJoinGame) {
+        onJoinGame(gameId);
+      }
     } catch (error: unknown) {
       console.error('Error joining game:', error);
       alert(error instanceof Error ? error.message : 'Failed to join game. Please try again.');
@@ -158,18 +199,16 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
   const filteredGames = games.filter(game => filter === 'all' || game.status === filter);
 
   const getConnectionStatus = () => {
-    if (isInitializing) return { text: 'Initializing...', color: 'text-yellow-500' };
-    if (isConnecting) return { text: 'Connecting...', color: 'text-blue-500' };
-    if (isConnected) return { text: 'Connected', color: 'text-green-500' };
-    if (isFallbackMode) return { text: 'Using Fallback Mode', color: 'text-orange-500' };
-    if (connectionError) return { text: 'Connection Error', color: 'text-red-500' };
+    if (isConnected) {
+      return { 
+        text: 'Connected', 
+        color: 'text-green-500' 
+      };
+    }
     return { text: 'Disconnected', color: 'text-gray-500' };
   };
 
   const status = getConnectionStatus();
-
-  // Rate limit warning
-  const showRateLimitWarning = reconnectAttempts > 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
@@ -181,40 +220,10 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
             <span className={`font-medium ${status.color}`}>
               {status.text}
             </span>
-            {isFallbackMode && (
-              <span className="text-sm text-orange-300">
-                (Real-time updates disabled)
-              </span>
-            )}
-            {reconnectAttempts > 0 && (
-              <span className="text-sm text-yellow-300">
-                (Attempt {reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})
-              </span>
-            )}
           </div>
           
-          {!isConnected && !isConnecting && (
-            <button
-              onClick={manualReconnect}
-              disabled={isConnecting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Reconnect
-            </button>
-          )}
-          
-          {showRateLimitWarning && (
-            <div className="text-sm text-orange-300 bg-orange-500/20 px-3 py-1 rounded-full">
-              ⚠️ Rate limit approaching
-            </div>
-          )}
+
         </div>
-        
-        {connectionError && (
-          <div className="mt-2 text-sm text-red-300">
-            Error: {connectionError}
-          </div>
-        )}
       </div>
 
       {/* Create Game Section */}
@@ -275,6 +284,13 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                 {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
               </button>
             ))}
+            <button
+              onClick={refreshGames}
+              disabled={isRefreshing}
+              className="px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 bg-white/10 text-purple-200 hover:bg-white/20"
+            >
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
           </div>
         </div>
 

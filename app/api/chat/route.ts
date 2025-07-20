@@ -5,7 +5,7 @@ import { saveLobbyMessage, getLobbyMessages } from '@/lib/db';
 // GET /api/chat - Get chat messages
 export async function GET() {
   try {
-    const messages = await getLobbyMessages(100);
+    const messages = await getLobbyMessages();
     return NextResponse.json(messages);
   } catch (error) {
     console.warn('Database not available, returning empty messages:', error);
@@ -25,7 +25,10 @@ export async function POST(request: NextRequest) {
     // Try to save message to database (optional)
     let savedMessage: { id: string; timestamp: string } | null = null;
     try {
-      savedMessage = await saveLobbyMessage(text, userName) as { id: string; timestamp: string } | null;
+      // For now, we'll need to get the user ID from the database or use a default
+      // This is a simplified version - in a real app, you'd get the user ID from the session
+      const userId = 1; // Default user ID for now
+      savedMessage = await saveLobbyMessage(userId, userName, text) as { id: string; timestamp: string } | null;
     } catch (dbError) {
       console.warn('Database not available, continuing without persistence:', dbError);
     }

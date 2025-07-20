@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
-import { getUserStatistics, updateGameStatistics } from '@/lib/db';
+import { getUserStatistics, updateGameStatistics, query } from '@/lib/db';
 
 // GET /api/stats/[userName] - Get user statistics
 export async function GET(
@@ -31,12 +31,19 @@ export async function POST(
       return NextResponse.json({ error: 'Valid result is required' }, { status: 400 });
     }
 
-    // Update statistics in database
-    const updatedStats = await updateGameStatistics(userName, result);
-    
-    if (!updatedStats) {
-      return NextResponse.json({ error: 'Failed to update statistics' }, { status: 500 });
+    // Get user ID from username first
+    const userResult = await query('SELECT id FROM users WHERE username = $1', [userName]);
+    if (userResult.rows.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+    
+    const userId = userResult.rows[0].id;
+    
+    // Update statistics in database
+    await updateGameStatistics(userId, result);
+    
+    // Get updated statistics
+    const updatedStats = await getUserStatistics(userName);
 
     // Trigger Pusher event to notify user
     if (pusherServer) {

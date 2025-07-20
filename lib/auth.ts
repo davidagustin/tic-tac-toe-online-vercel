@@ -56,7 +56,7 @@ export class AuthService {
         [username, hashedPassword]
       );
       
-      return result[0] as User;
+      return result.rows[0] as User;
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
@@ -67,7 +67,7 @@ export class AuthService {
   static async getUserByUsername(username: string): Promise<User | undefined> {
     try {
       const result = await query('SELECT * FROM users WHERE username = $1', [username]);
-      return result[0] as User | undefined;
+      return result.rows[0] as User | undefined;
     } catch (error) {
       console.error('Error getting user by username:', error);
       return undefined;
@@ -78,7 +78,7 @@ export class AuthService {
   static async getUserById(id: number): Promise<User | undefined> {
     try {
       const result = await query('SELECT * FROM users WHERE id = $1', [id]);
-      return result[0] as User | undefined;
+      return result.rows[0] as User | undefined;
     } catch (error) {
       console.error('Error getting user by ID:', error);
       return undefined;
@@ -107,7 +107,7 @@ export class AuthService {
   static async getAllUsers(): Promise<User[]> {
     try {
       const result = await query('SELECT * FROM users ORDER BY created_at DESC');
-      return result as User[];
+      return result.rows as User[];
     } catch (error) {
       console.error('Error getting all users:', error);
       return [];
@@ -130,7 +130,7 @@ export class AuthService {
   static async deleteUser(userId: number): Promise<boolean> {
     try {
       const result = await query('DELETE FROM users WHERE id = $1', [userId]);
-      return (result as unknown[]).length > 0;
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       console.error('Error deleting user:', error);
       return false;
@@ -157,7 +157,7 @@ export class AuthService {
   static async getUsersCount(): Promise<number> {
     try {
       const result = await query('SELECT COUNT(*) as count FROM users');
-      return parseInt((result[0] as { count: string }).count);
+      return parseInt((result.rows[0] as { count: string }).count);
     } catch (error) {
       console.error('Error getting users count:', error);
       return 0;

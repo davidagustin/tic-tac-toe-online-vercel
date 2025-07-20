@@ -36,7 +36,48 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
-  const { isConnected } = usePusher();
+  const { isConnected, clearGames } = usePusher();
+
+  // Global cleanup function for debugging
+  useEffect(() => {
+    // Add global cleanup function to window for debugging
+    (window as any).clearAllGames = async () => {
+      console.log('🧹 Global cleanup triggered...');
+      
+      // Clear Pusher games state
+      clearGames();
+      
+      // Clear localStorage
+      localStorage.removeItem('ticTacToeUser');
+      localStorage.removeItem('currentUser');
+      
+      // Clear sessionStorage
+      sessionStorage.clear();
+      
+      // Call backend cleanup
+      try {
+        await fetch('/api/clear-db', { method: 'POST' });
+        console.log('✅ Backend cleared');
+      } catch (error) {
+        console.log('⚠️ Backend cleanup failed:', error);
+      }
+      
+      // Force page reload
+      window.location.reload();
+    };
+    
+    // Add function to check current state
+    (window as any).checkGameState = () => {
+      console.log('📊 Current game state:');
+      console.log('- localStorage ticTacToeUser:', localStorage.getItem('ticTacToeUser'));
+      console.log('- localStorage currentUser:', localStorage.getItem('currentUser'));
+      console.log('- sessionStorage keys:', Object.keys(sessionStorage));
+    };
+    
+    console.log('🔧 Debug functions available:');
+    console.log('- clearAllGames() - Clear all games and reload');
+    console.log('- checkGameState() - Check current storage state');
+  }, [clearGames]);
 
   // Load user from localStorage on component mount
   useEffect(() => {
@@ -136,6 +177,9 @@ export default function Home() {
         console.log('Leaving game before sign out:', currentGame.gameId);
         // Game leaving is handled by the Game component
       }
+
+      // Clear games state immediately
+      clearGames();
 
       // Notify server to clean up user's games and connections
       await fetch('/api/clear-auth', {

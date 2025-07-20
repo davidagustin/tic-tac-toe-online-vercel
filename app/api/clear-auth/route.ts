@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getGame, setGame, deleteGame } from '@/lib/game-storage';
+import { pusherServer } from '@/lib/pusher';
 
 export async function POST(request: NextRequest) {
   try {
@@ -6,16 +8,44 @@ export async function POST(request: NextRequest) {
     const { username, action } = body;
 
     if (action === 'signout' && username) {
-      // In a real implementation, you would:
-      // 1. Find all games created by this user
-      // 2. Find all games where this user is a player
-      // 3. Clean up those games
-      // 4. Notify other players about the cleanup
+      console.log(`🧹 User ${username} signed out - cleaning up games...`);
       
-      console.log(`User ${username} signed out - games should be cleaned up`);
+      // Get all games and find ones with this user
+      const { getAllGames } = await import('@/lib/game-storage');
+      const allGames = getAllGames();
       
-      // For now, we'll just log the sign out
-      // The actual cleanup will happen when the socket disconnects
+      for (const game of allGames) {
+        if (game.players.includes(username)) {
+          console.log(`🧹 Removing ${username} from game ${game.id}`);
+          
+          // Remove user from game
+          const updatedGame = {
+            ...game,
+            players: game.players.filter(player => player !== username)
+          };
+          
+          // If no players left, delete the game
+          if (updatedGame.players.length === 0) {
+            console.log(`🧹 Deleting empty game ${game.id}`);
+            deleteGame(game.id);
+            
+            // Notify lobby about game removal
+            if (pusherServer) {
+              await pusherServer.trigger('lobby', 'game-removed', { gameId: game.id });
+            }
+          } else {
+            // Update game with remaining players
+            setGame(game.id, updatedGame);
+            
+            // Notify lobby about game update
+            if (pusherServer) {
+              await pusherServer.trigger('lobby', 'game-updated', { game: updatedGame });
+            }
+          }
+        }
+      }
+      
+      console.log(`✅ Cleanup completed for ${username}`);
     }
 
     return NextResponse.json({ 

@@ -1,76 +1,26 @@
 import { NextResponse } from 'next/server';
-import { RateLimiter } from '@/lib/security';
+import { pusherServer } from '@/lib/pusher';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // Get client IP for rate limiting
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
-    
-    // Check rate limit
-    if (!RateLimiter.checkRateLimit(ip, 10)) { // 10 requests per minute for config
-      return NextResponse.json(
-        { error: 'Rate limit exceeded' },
-        { 
-          status: 429,
-          headers: {
-            'Retry-After': '60',
-            'X-RateLimit-Limit': '10',
-            'X-RateLimit-Remaining': '0'
-          }
-        }
-      );
+    if (!pusherServer) {
+      return NextResponse.json({ error: 'Pusher not configured' }, { status: 500 });
     }
 
-    const environment = process.env.APP_ENV || 'development';
-    
-    let pusherConfig;
-    
-    switch (environment) {
-      case 'production':
-        pusherConfig = {
-          key: process.env.PUSHER_KEY_PRODUCTION,
-          cluster: process.env.PUSHER_CLUSTER_PRODUCTION,
-        };
-        break;
-      case 'staging':
-        pusherConfig = {
-          key: process.env.PUSHER_KEY_STAGING,
-          cluster: process.env.PUSHER_CLUSTER_STAGING,
-        };
-        break;
-      default: // development
-        pusherConfig = {
-          key: process.env.PUSHER_KEY,
-          cluster: process.env.PUSHER_CLUSTER,
-        };
-    }
-
-    if (!pusherConfig.key || !pusherConfig.cluster) {
-      return NextResponse.json(
-        { error: 'Pusher configuration not available' },
-        { status: 500 }
-      );
-    }
-
-    // Get rate limit info
-    const rateLimitInfo = RateLimiter.getRateLimitInfo(ip);
-    const headers: Record<string, string> = {
-      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+    const config = {
+      key: process.env.NEXT_PUBLIC_PUSHER_KEY,
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+      forceTLS: true,
     };
 
-    if (rateLimitInfo) {
-      headers['X-RateLimit-Limit'] = '10';
-      headers['X-RateLimit-Remaining'] = rateLimitInfo.remaining.toString();
-      headers['X-RateLimit-Reset'] = rateLimitInfo.resetTime.toString();
-    }
-
-    return NextResponse.json(pusherConfig, { headers });
+    return NextResponse.json(config, {
+      headers: {
+        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        'X-Rate-Limit-Remaining': '1000', // Indicate remaining requests
+      }
+    });
   } catch (error) {
-    console.error('Error in pusher-config:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error getting Pusher config:', error);
+    return NextResponse.json({ error: 'Failed to get Pusher config' }, { status: 500 });
   }
 } 

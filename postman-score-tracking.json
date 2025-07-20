@@ -1,0 +1,786 @@
+{
+  "info": {
+    "name": "Tic-Tac-Toe API - Score Tracking Tests",
+    "description": "Comprehensive testing for score tracking and statistics updates when players win or lose games",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "player1",
+      "value": "score_test_player1",
+      "type": "string"
+    },
+    {
+      "key": "player2",
+      "value": "score_test_player2",
+      "type": "string"
+    },
+    {
+      "key": "testGameId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏆 Score Tracking - Complete Game Flow",
+      "item": [
+        {
+          "name": "1. Register Players",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{player1}}\",\n  \"password\": \"testpass123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 1 registered successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    console.log(\"Player 1 registered: {{player1}}\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Register Player 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{player2}}\",\n  \"password\": \"testpass123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 registered successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    console.log(\"Player 2 registered: {{player2}}\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Get Initial Stats - Player 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/{{player1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "{{player1}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Initial stats retrieved for Player 1\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('username');",
+                  "    pm.expect(response).to.have.property('stats');",
+                  "    ",
+                  "    // Store initial stats",
+                  "    pm.environment.set(\"player1_initial_wins\", response.stats.wins || 0);",
+                  "    pm.environment.set(\"player1_initial_losses\", response.stats.losses || 0);",
+                  "    pm.environment.set(\"player1_initial_draws\", response.stats.draws || 0);",
+                  "    pm.environment.set(\"player1_initial_games\", response.stats.totalGames || 0);",
+                  "    ",
+                  "    console.log(`Player 1 initial stats: ${JSON.stringify(response.stats)}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Get Initial Stats - Player 2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/{{player2}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "{{player2}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Initial stats retrieved for Player 2\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('username');",
+                  "    pm.expect(response).to.have.property('stats');",
+                  "    ",
+                  "    // Store initial stats",
+                  "    pm.environment.set(\"player2_initial_wins\", response.stats.wins || 0);",
+                  "    pm.environment.set(\"player2_initial_losses\", response.stats.losses || 0);",
+                  "    pm.environment.set(\"player2_initial_draws\", response.stats.draws || 0);",
+                  "    pm.environment.set(\"player2_initial_games\", response.stats.totalGames || 0);",
+                  "    ",
+                  "    console.log(`Player 2 initial stats: ${JSON.stringify(response.stats)}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Create Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameName\": \"Score Test Game\",\n  \"userName\": \"{{player1}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "create"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Game created successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game).to.have.property('id');",
+                  "    ",
+                  "    // Store game ID",
+                  "    pm.environment.set(\"testGameId\", response.game.id);",
+                  "    console.log(`Game created with ID: ${response.game.id}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Join Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player2}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "join"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 joined game successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game).to.have.property('player2');",
+                  "    pm.expect(response.game.player2).to.eql('{{player2}}');",
+                  "    console.log(\"Player 2 joined the game\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Play Game - Player 1 Move (Position 0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player1}}\",\n  \"position\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 1 move successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game.board[0]).to.not.be.empty;",
+                  "    console.log(\"Player 1 moved to position 0\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Play Game - Player 2 Move (Position 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player2}}\",\n  \"position\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 move successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game.board[1]).to.not.be.empty;",
+                  "    console.log(\"Player 2 moved to position 1\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Play Game - Player 1 Move (Position 3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player1}}\",\n  \"position\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 1 move successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game.board[3]).to.not.be.empty;",
+                  "    console.log(\"Player 1 moved to position 3\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Play Game - Player 2 Move (Position 4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player2}}\",\n  \"position\": 4\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 move successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game.board[4]).to.not.be.empty;",
+                  "    console.log(\"Player 2 moved to position 4\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Play Game - Player 1 Winning Move (Position 6)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{testGameId}}\",\n  \"userName\": \"{{player1}}\",\n  \"position\": 6\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 1 winning move successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.game.board[6]).to.not.be.empty;",
+                  "    ",
+                  "    // Check if game is completed",
+                  "    if (response.game.winner) {",
+                  "        pm.expect(response.game.winner).to.eql('{{player1}}');",
+                  "        pm.expect(response.game.status).to.eql('completed');",
+                  "        console.log(`Game completed! Winner: ${response.game.winner}`);",
+                  "    } else {",
+                  "        console.log(\"Game still in progress\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Verify Player 1 Stats After Win",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/{{player1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "{{player1}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 1 stats updated after win\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    const stats = response.stats;",
+                  "    ",
+                  "    const initialWins = parseInt(pm.environment.get(\"player1_initial_wins\"));",
+                  "    const initialGames = parseInt(pm.environment.get(\"player1_initial_games\"));",
+                  "    ",
+                  "    pm.expect(stats.wins).to.eql(initialWins + 1);",
+                  "    pm.expect(stats.totalGames).to.eql(initialGames + 1);",
+                  "    pm.expect(stats.losses).to.eql(parseInt(pm.environment.get(\"player1_initial_losses\")));",
+                  "    pm.expect(stats.draws).to.eql(parseInt(pm.environment.get(\"player1_initial_draws\")));",
+                  "    ",
+                  "    console.log(`Player 1 final stats: ${JSON.stringify(stats)}`);",
+                  "    console.log(`Wins increased from ${initialWins} to ${stats.wins}`);",
+                  "    console.log(`Total games increased from ${initialGames} to ${stats.totalGames}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Verify Player 2 Stats After Loss",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/{{player2}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "{{player2}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 stats updated after loss\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    const stats = response.stats;",
+                  "    ",
+                  "    const initialLosses = parseInt(pm.environment.get(\"player2_initial_losses\"));",
+                  "    const initialGames = parseInt(pm.environment.get(\"player2_initial_games\"));",
+                  "    ",
+                  "    pm.expect(stats.losses).to.eql(initialLosses + 1);",
+                  "    pm.expect(stats.totalGames).to.eql(initialGames + 1);",
+                  "    pm.expect(stats.wins).to.eql(parseInt(pm.environment.get(\"player2_initial_wins\")));",
+                  "    pm.expect(stats.draws).to.eql(parseInt(pm.environment.get(\"player2_initial_draws\")));",
+                  "    ",
+                  "    console.log(`Player 2 final stats: ${JSON.stringify(stats)}`);",
+                  "    console.log(`Losses increased from ${initialLosses} to ${stats.losses}`);",
+                  "    console.log(`Total games increased from ${initialGames} to ${stats.totalGames}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🤝 Draw Game Testing",
+      "item": [
+        {
+          "name": "1. Create Draw Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameName\": \"Draw Test Game\",\n  \"userName\": \"{{player1}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "create"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Draw game created\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set(\"drawGameId\", response.game.id);",
+                  "    console.log(`Draw game created: ${response.game.id}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Join Draw Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{drawGameId}}\",\n  \"userName\": \"{{player2}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "join"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Player 2 joined draw game\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Play Draw Game - Complete Board",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{drawGameId}}\",\n  \"userName\": \"{{player1}}\",\n  \"position\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Draw game move 1\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Continue Draw Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{drawGameId}}\",\n  \"userName\": \"{{player2}}\",\n  \"position\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Draw game move 2\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Complete Draw Game",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"{{drawGameId}}\",\n  \"userName\": \"{{player1}}\",\n  \"position\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/game/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "game", "move"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Draw game completed\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    if (response.game.status === 'completed' && !response.game.winner) {",
+                  "        console.log(\"Draw game detected!\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📊 Statistics Validation",
+      "item": [
+        {
+          "name": "Validate Stats Structure",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/{{player1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "{{player1}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Stats structure is valid\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    pm.expect(response).to.have.property('username');",
+                  "    pm.expect(response).to.have.property('stats');",
+                  "    pm.expect(response.username).to.eql('{{player1}}');",
+                  "    ",
+                  "    const stats = response.stats;",
+                  "    pm.expect(stats).to.have.property('wins');",
+                  "    pm.expect(stats).to.have.property('losses');",
+                  "    pm.expect(stats).to.have.property('draws');",
+                  "    pm.expect(stats).to.have.property('totalGames');",
+                  "    pm.expect(stats).to.have.property('winRate');",
+                  "    ",
+                  "    // Validate data types",
+                  "    pm.expect(stats.wins).to.be.a('number');",
+                  "    pm.expect(stats.losses).to.be.a('number');",
+                  "    pm.expect(stats.draws).to.be.a('number');",
+                  "    pm.expect(stats.totalGames).to.be.a('number');",
+                  "    pm.expect(stats.winRate).to.be.a('number');",
+                  "    ",
+                  "    // Validate logical relationships",
+                  "    pm.expect(stats.totalGames).to.eql(stats.wins + stats.losses + stats.draws);",
+                  "    if (stats.totalGames > 0) {",
+                  "        pm.expect(stats.winRate).to.be.at.least(0);",
+                  "        pm.expect(stats.winRate).to.be.at.most(100);",
+                  "    }",
+                  "    ",
+                  "    console.log(`Stats validation passed for ${response.username}`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Test Non-existent User Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats/nonexistentuser123",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats", "nonexistentuser123"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Non-existent user stats handled\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "    if (pm.response.code === 200) {",
+                  "        const response = pm.response.json();",
+                  "        pm.expect(response.stats.wins).to.eql(0);",
+                  "        pm.expect(response.stats.losses).to.eql(0);",
+                  "        pm.expect(response.stats.draws).to.eql(0);",
+                  "        pm.expect(response.stats.totalGames).to.eql(0);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+} 

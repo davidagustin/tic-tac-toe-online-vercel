@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pusherServer, CHANNELS, EVENTS } from '@/lib/pusher';
-
-// In-memory storage for games (in production, use a database)
-const games = new Map();
+import { getGame, setGame } from '@/lib/game-storage';
 
 // Check for winner
 function checkWinner(board: (string | null)[]): string | null {
@@ -37,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = games.get(gameId);
+    const game = getGame(gameId);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -84,28 +82,35 @@ export async function POST(request: NextRequest) {
       game.currentPlayer = null;
     } else {
       // Switch turns
-      game.currentPlayer = game.players.find((p: string) => p !== player) || null;
+      game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
     }
 
     // Update game in storage
-    games.set(gameId, game);
+    setGame(gameId, game);
 
     // Trigger Pusher events
     if (pusherServer) {
+      console.log('🎮 Move API: Triggering Pusher events...');
+      console.log('🎮 Move API: Game state after move:', JSON.stringify(game, null, 2));
+      console.log('🎮 Move API: Current player after move:', game.currentPlayer);
+      
       await pusherServer.trigger(CHANNELS.LOBBY, EVENTS.GAME_UPDATED, {
         game,
       });
+      console.log('✅ Move API: Lobby event triggered');
 
       await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.PLAYER_MOVED, {
         game,
         move: { index, player },
       });
+      console.log('✅ Move API: Player moved event triggered');
 
       if (winner) {
         await pusherServer.trigger(CHANNELS.GAME(gameId), EVENTS.GAME_ENDED, {
           game,
           winner: game.winner,
         });
+        console.log('✅ Move API: Game ended event triggered');
 
         // Update statistics for both players
         if (game.winner) {
@@ -115,6 +120,8 @@ export async function POST(request: NextRequest) {
           console.log('Game ended in a draw');
         }
       }
+    } else {
+      console.error('❌ Move API: Pusher server not available');
     }
 
     console.log('Move made:', { gameId, index, player, winner });

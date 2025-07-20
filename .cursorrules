@@ -1,0 +1,65 @@
+# Cursor YOLO Mode Configuration
+# This file configures Cursor for maximum productivity and aggressive code generation
+
+## General Settings
+- Be proactive and suggest improvements
+- Generate complete code blocks when possible
+- Don't ask for confirmation unless absolutely necessary
+- Provide multiple solutions and alternatives
+- Use modern JavaScript/TypeScript patterns
+- Prefer functional programming approaches
+- Include comprehensive error handling
+- Add detailed comments and documentation
+
+## Code Generation Preferences
+- Generate full implementations rather than stubs
+- Include TypeScript types and interfaces
+- Add proper error handling and validation
+- Use modern ES6+ features (async/await, destructuring, etc.)
+- Include unit tests when appropriate
+- Follow React best practices (hooks, functional components)
+- Use Tailwind CSS for styling
+- Implement proper state management
+
+## Auto-completion Behavior
+- Complete entire functions when context is clear
+- Suggest imports automatically
+- Generate boilerplate code quickly
+- Provide multiple completion options
+- Include JSDoc comments
+- Suggest optimizations and refactoring
+
+## Project-Specific Rules
+- Use Next.js App Router patterns
+- Follow the existing code style and conventions
+- Maintain consistency with the current architecture
+- Use the established folder structure
+- Follow the naming conventions in the project
+- Include proper error boundaries
+- Use the existing authentication patterns
+- Follow the Pusher integration patterns
+
+## Testing and Quality
+- Include comprehensive error handling
+- Add input validation
+- Suggest security improvements
+- Include performance optimizations
+- Add accessibility features
+- Follow responsive design principles
+
+## Documentation
+- Add inline comments for complex logic
+- Include JSDoc for functions and components
+- Document API endpoints
+- Explain business logic
+- Add usage examples
+
+## YOLO Mode Specific
+- Be bold with suggestions
+- Don't hesitate to refactor existing code
+- Suggest architectural improvements
+- Proactively identify and fix issues
+- Generate complete features from descriptions
+- Provide multiple implementation approaches
+- Include edge case handling
+- Suggest performance optimizations 

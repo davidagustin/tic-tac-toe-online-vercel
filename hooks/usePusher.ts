@@ -146,23 +146,17 @@ export function usePusher() {
         });
 
         setPusher(newPusher);
+        pusherClientRef.current = newPusher;
         return;
       }
       
-      // Get fresh config to avoid stale credentials with debouncing
-      const configResponse = await debouncedApiCall(async () => {
-        const response = await fetch('/api/pusher-config');
-        if (!response.ok) {
-          throw new Error('Failed to get Pusher config');
-        }
-        return response.json();
-      });
-      
-      if (!configResponse) {
-        throw new Error('API call debounced');
+      // Get fresh config (no debouncing for initial connection)
+      const response = await fetch('/api/pusher-config');
+      if (!response.ok) {
+        throw new Error('Failed to get Pusher config');
       }
       
-      const config = configResponse;
+      const config = await response.json();
       
       // Cache the config
       configCacheRef.current = {
@@ -223,6 +217,7 @@ export function usePusher() {
       });
 
       setPusher(newPusher);
+      pusherClientRef.current = newPusher;
       
     } catch (error) {
       console.error('Failed to initialize Pusher:', error);
@@ -250,6 +245,80 @@ export function usePusher() {
     }, 1000);
   }, [pusher, connect]);
 
+  // Clear games state (useful for logout cleanup)
+  const clearGames = useCallback(() => {
+    console.log('🧹 Clearing games state from Pusher hook');
+    setGames([]);
+  }, []);
+
+  // Handle page unload to clean up user from games
+  useEffect(() => {
+    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+      console.log('🔄 Page unloading, cleaning up user...');
+      
+      // Get current user from localStorage or session
+      const currentUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser') || localStorage.getItem('ticTacToeUser');
+      
+      if (currentUser) {
+        try {
+          const userData = JSON.parse(currentUser);
+          console.log(`🧹 Cleaning up user ${userData.username} on page unload`);
+          
+          // Send cleanup request to server
+          await fetch('/api/clear-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: userData.username, 
+              action: 'signout' 
+            }),
+            // Use keepalive to ensure request completes
+            keepalive: true
+          });
+          
+          // Clear games state immediately
+          clearGames();
+        } catch (error) {
+          console.error('Error cleaning up user on page unload:', error);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('🔄 Page hidden, cleaning up user...');
+        handleBeforeUnload(new Event('beforeunload') as BeforeUnloadEvent);
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [clearGames]);
+
+  // Periodic cleanup of inactive users and old games
+  useEffect(() => {
+    const cleanupInterval = setInterval(async () => {
+      try {
+        console.log('🧹 Running periodic cleanup...');
+        await fetch('/api/cleanup-periodic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('Error during periodic cleanup:', error);
+      }
+    }, 5 * 60 * 1000); // Run every 5 minutes
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
   // Disconnect from Pusher
   const disconnect = useCallback(() => {
     try {
@@ -269,6 +338,7 @@ export function usePusher() {
         userChannel.current = null;
       }
       pusherClient.disconnect();
+      pusherClientRef.current = null;
       setIsConnected(false);
       
       // Clear connection attempt flag and timeouts
@@ -283,22 +353,52 @@ export function usePusher() {
   }, [currentGame?.id]);
 
   // Join a game channel
-  const joinGame = useCallback((gameId: string, userName: string) => {
+  const joinGame = useCallback(async (gameId: string, userName: string) => {
+    console.log('🔌 usePusher: joinGame called with gameId:', gameId, 'userName:', userName);
+    
     try {
       const pusherClient = pusherClientRef.current;
+      console.log('🔌 usePusher: pusherClient available:', !!pusherClient);
+      
       if (!pusherClient) {
-        console.error('Pusher client not initialized');
+        console.error('❌ usePusher: Pusher client not initialized');
         return;
       }
 
       // Unsubscribe from previous game channel
       if (gameChannel.current) {
+        console.log('🔌 usePusher: Unsubscribing from previous game channel');
         pusherClient.unsubscribe(CHANNELS.GAME(currentGame?.id || ''));
         gameChannel.current = null;
       }
 
       // Subscribe to new game channel
+      console.log('🔌 usePusher: Subscribing to game channel:', CHANNELS.GAME(gameId));
       gameChannel.current = pusherClient.subscribe(CHANNELS.GAME(gameId));
+      console.log('✅ usePusher: Successfully subscribed to game channel');
+
+      // Immediately fetch current game data
+      console.log('🔌 usePusher: Fetching current game data from API...');
+      try {
+        const response = await fetch(`/api/games/${gameId}`);
+        console.log('🔌 usePusher: Game data API response status:', response.status);
+        
+        if (response.ok) {
+          const gameData = await response.json();
+          console.log('✅ usePusher: Fetched current game data:', gameData);
+          console.log('✅ usePusher: Game players:', gameData.players);
+          console.log('✅ usePusher: Game status:', gameData.status);
+          console.log('✅ usePusher: Game currentPlayer:', gameData.currentPlayer);
+          console.log('✅ usePusher: Game board:', gameData.board);
+          setCurrentGame(gameData);
+        } else {
+          console.error('❌ usePusher: Failed to fetch game data:', response.status);
+          const errorText = await response.text();
+          console.error('❌ usePusher: Error response:', errorText);
+        }
+      } catch (error) {
+        console.error('❌ usePusher: Error fetching game data:', error);
+      }
 
       // Game-specific event handlers
       if (gameChannel.current) {
@@ -403,41 +503,75 @@ export function usePusher() {
 
   // Subscribe to user-specific channel for stats
   const subscribeToUser = useCallback((userName: string) => {
-    try {
-      const pusherClient = pusherClientRef.current;
-      if (!pusherClient) {
-        console.error('Pusher client not initialized');
-        return;
-      }
-
-      if (userChannel.current) {
-        pusherClient.unsubscribe(CHANNELS.USER(userName));
-        userChannel.current = null;
-      }
-
-      userChannel.current = pusherClient.subscribe(CHANNELS.USER(userName));
-
-      if (userChannel.current) {
-        userChannel.current.bind(EVENTS.STATS_UPDATED, (data: unknown) => {
-          try {
-            const statsData = data as { stats: PlayerStats };
-            console.log('User stats updated:', statsData.stats);
-            setPlayerStats(statsData.stats);
-          } catch (error) {
-            console.error('Error handling user stats updated event:', error);
-          }
-        });
-      }
-
-    } catch (error) {
-      console.error('Error subscribing to user channel:', error);
+    if (!pusher || !pusher.connection) {
+      console.error('Pusher client not initialized or not connected');
+      return;
     }
-  }, []);
+    
+    // Add a small delay to ensure connection is stable
+    setTimeout(() => {
+      if (pusher && pusher.connection.state === 'connected') {
+        const channel = pusher.subscribe(`user-${userName}`);
+        console.log(`Subscribed to user channel: user-${userName}`);
+      } else {
+        console.error('Pusher not connected, cannot subscribe to user channel');
+      }
+    }, 100);
+  }, [pusher]);
 
+  // Subscribe to lobby channel for game updates
+  const subscribeToLobby = useCallback(() => {
+    console.log('🔌 usePusher: subscribeToLobby called - pusher:', !!pusher, 'isConnected:', isConnected);
+    console.log('🔌 usePusher: Browser:', navigator.userAgent);
+    
+    if (!pusher || !isConnected) {
+      console.error('❌ usePusher: Pusher not connected, cannot subscribe to lobby');
+      console.error('❌ usePusher: pusher state:', pusher?.connection?.state);
+      return;
+    }
 
+    console.log('🔌 usePusher: Subscribing to lobby channel...');
+    const lobbyChannel = pusher.subscribe('lobby');
+    console.log('✅ usePusher: Successfully subscribed to lobby channel');
+    
+    // Add subscription success callback
+    lobbyChannel.bind('pusher:subscription_succeeded', () => {
+      console.log('✅ usePusher: Lobby subscription succeeded');
+    });
+
+    lobbyChannel.bind('pusher:subscription_error', (error: any) => {
+      console.error('❌ usePusher: Lobby subscription error:', error);
+    });
+    
+    lobbyChannel.bind('game-created', (data: { game: Game }) => {
+      console.log('🔌 usePusher: Game created in lobby:', data.game);
+      setGames(prev => {
+        const existing = prev.find(g => g.id === data.game.id);
+        if (existing) {
+          return prev.map(g => g.id === data.game.id ? data.game : g);
+        } else {
+          return [...prev, data.game];
+        }
+      });
+    });
+
+    lobbyChannel.bind('game-updated', (data: { game: Game }) => {
+      console.log('🔌 usePusher: Game updated in lobby:', data.game);
+      setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+    });
+
+    lobbyChannel.bind('game-removed', (data: { gameId: string }) => {
+      console.log('🔌 usePusher: Game removed from lobby:', data.gameId);
+      setGames(prev => prev.filter(g => g.id !== data.gameId));
+    });
+  }, [pusher, isConnected]);
 
   // Initialize connection on mount
   useEffect(() => {
+    // Clear games state on initial load to prevent stale data
+    console.log('🧹 usePusher: Clearing games state on initial load...');
+    setGames([]);
+    
     // Only attempt connection if not already connected and not already attempting
     if (!isConnected && !connectionAttemptRef.current) {
       connect();
@@ -457,6 +591,14 @@ export function usePusher() {
       disconnect();
     };
   }, []); // Remove dependencies to prevent multiple calls
+
+  // Subscribe to lobby when connected
+  useEffect(() => {
+    if (isConnected) {
+      console.log('🔌 usePusher: Connection established, subscribing to lobby...');
+      subscribeToLobby();
+    }
+  }, [isConnected, subscribeToLobby]);
 
   // Improved polling with rate limiting
   useEffect(() => {
@@ -498,32 +640,31 @@ export function usePusher() {
     joinGame,
     leaveGame,
     subscribeToUser,
+    subscribeToLobby,
     chatMessages,
     games,
     currentGame,
     playerStats,
+    clearGames, // Expose clearGames function
   };
 }
 
 // Hook for subscribing to game events
 export function useGameChannel(gameId: string) {
   const [channel, setChannel] = useState<Channel | null>(null);
-  const { isConnected } = usePusher();
+  const { isConnected, pusher } = usePusher();
 
   useEffect(() => {
-    if (!isConnected || !gameId) return;
+    if (!isConnected || !gameId || !pusher) return;
 
-    const pusherClient = getPusherClient();
-    if (!pusherClient) return;
-
-    const gameChannel = pusherClient.subscribe(CHANNELS.GAME(gameId));
+    const gameChannel = pusher.subscribe(CHANNELS.GAME(gameId));
     setChannel(gameChannel);
 
     return () => {
-      pusherClient.unsubscribe(CHANNELS.GAME(gameId));
+      pusher.unsubscribe(CHANNELS.GAME(gameId));
       setChannel(null);
     };
-  }, [isConnected, gameId]);
+  }, [isConnected, gameId, pusher]);
 
   return channel;
 }
@@ -531,22 +672,19 @@ export function useGameChannel(gameId: string) {
 // Hook for subscribing to user events
 export function useUserChannel(userId: string) {
   const [channel, setChannel] = useState<Channel | null>(null);
-  const { isConnected } = usePusher();
+  const { isConnected, pusher } = usePusher();
 
   useEffect(() => {
-    if (!isConnected || !userId) return;
+    if (!isConnected || !userId || !pusher) return;
 
-    const pusherClient = getPusherClient();
-    if (!pusherClient) return;
-
-    const userChannel = pusherClient.subscribe(CHANNELS.USER(userId));
+    const userChannel = pusher.subscribe(CHANNELS.USER(userId));
     setChannel(userChannel);
 
-    return () => {
-      pusherClient.unsubscribe(CHANNELS.USER(userId));
+  return () => {
+      pusher.unsubscribe(CHANNELS.USER(userId));
       setChannel(null);
     };
-  }, [isConnected, userId]);
+  }, [isConnected, userId, pusher]);
 
   return channel;
 } 
