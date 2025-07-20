@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { initializePusherClient, getPusherClient, CHANNELS, EVENTS, type Game, type Player, type ChatMessage, type PlayerStats } from '@/lib/pusher-client';
+import { CHANNELS, EVENTS, type ChatMessage, type Game, type PlayerStats } from '@/lib/pusher-client';
 import type { Channel } from 'pusher-js';
 import Pusher from 'pusher-js';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-const CONNECTION_TIMEOUT = 10000; // 10 seconds
-const RECONNECT_DELAY = 10000; // Increased from 5 to 10 seconds minimum
-const MAX_RECONNECT_ATTEMPTS = 3; // Reduced from 5 to 3 attempts
-const POLLING_INTERVAL = 30000; // Increased from 15 to 30 seconds
-const EXPONENTIAL_BACKOFF_BASE = 5000; // Increased from 2 to 5 seconds base
+const CONNECTION_TIMEOUT = 15000; // Increased from 10 to 15 seconds
+const RECONNECT_DELAY = 30000; // Increased from 10 to 30 seconds minimum
+const MAX_RECONNECT_ATTEMPTS = 2; // Reduced from 3 to 2 attempts
+const POLLING_INTERVAL = 120000; // Increased from 30 to 120 seconds (2 minutes)
+const EXPONENTIAL_BACKOFF_BASE = 10000; // Increased from 5 to 10 seconds base
+const CONFIG_CACHE_TIME = 300000; // 5 minutes cache for config
+const API_DEBOUNCE_TIME = 5000; // 5 second debounce for API calls
 
 export function usePusher() {
   const [pusher, setPusher] = useState<Pusher | null>(null);
@@ -33,17 +35,32 @@ export function usePusher() {
   const connectionAttemptRef = useRef<boolean>(false);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastApiCallRef = useRef<number>(0);
-  const apiCallDebounceMs = 1000; // 1 second debounce between API calls
+  const apiCallDebounceMs = API_DEBOUNCE_TIME;
   const configCacheRef = useRef<{ config: any; timestamp: number } | null>(null);
-  const configCacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+  const configCacheTimeout = CONFIG_CACHE_TIME;
+  const connectionPoolRef = useRef<Set<string>>(new Set());
 
-  // Exponential backoff calculation
-  const getReconnectDelay = useCallback((attempts: number) => {
-    const delay = Math.min(
-      EXPONENTIAL_BACKOFF_BASE * Math.pow(2, attempts),
-      30000 // Max 30 seconds
-    );
-    return delay;
+  // Intelligent exponential backoff
+  const getReconnectDelay = useCallback((attempt: number) => {
+    // Exponential backoff with jitter: base * (2^attempt) + random jitter
+    const baseDelay = EXPONENTIAL_BACKOFF_BASE * Math.pow(2, attempt - 1);
+    const jitter = Math.random() * 5000; // Add up to 5 seconds of jitter
+    const maxDelay = 300000; // Cap at 5 minutes
+    return Math.min(baseDelay + jitter, maxDelay);
+  }, []);
+
+  // Connection pool management to prevent multiple connections
+  const acquireConnection = useCallback((connectionId: string) => {
+    if (connectionPoolRef.current.has(connectionId)) {
+      console.log('Connection already in pool, skipping...');
+      return false;
+    }
+    connectionPoolRef.current.add(connectionId);
+    return true;
+  }, []);
+
+  const releaseConnection = useCallback((connectionId: string) => {
+    connectionPoolRef.current.delete(connectionId);
   }, []);
 
   // Debounced API call to prevent rate limiting
@@ -53,31 +70,41 @@ export function usePusher() {
       console.log('API call debounced, waiting...');
       return null;
     }
-    
+
     lastApiCallRef.current = now;
     return apiFunction();
   }, []);
 
   // Debounced connection to prevent race conditions
   const connect = useCallback(async () => {
+    const connectionId = Date.now().toString();
     const now = Date.now();
-    
-    // Prevent multiple simultaneous connections
-    if (isConnecting || pusher?.connection.state === 'connected') {
-      console.log('Connection already in progress or connected');
+
+    // Connection pooling - prevent multiple simultaneous connections
+    if (!acquireConnection(connectionId)) {
       return;
     }
 
-    // Rate limit reconnection attempts
+    // Prevent multiple simultaneous connections
+    if (isConnecting || pusher?.connection.state === 'connected') {
+      console.log('Connection already in progress or connected');
+      releaseConnection(connectionId);
+      return;
+    }
+
+    // Rate limit reconnection attempts with longer delays
     if (now - lastReconnectTime < RECONNECT_DELAY) {
-      console.log('Reconnection rate limited, waiting...');
+      console.log(`Reconnection rate limited, waiting ${RECONNECT_DELAY - (now - lastReconnectTime)}ms...`);
+      releaseConnection(connectionId);
       return;
     }
 
     // Check max reconnect attempts
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.log('Max reconnection attempts reached, staying in fallback mode');
+      console.log('Max reconnection attempts reached, disabling real-time features');
       setIsFallbackMode(true);
+      setIsInitializing(false);
+      releaseConnection(connectionId);
       return;
     }
 
@@ -85,25 +112,27 @@ export function usePusher() {
     setLastReconnectTime(now);
 
     try {
-      console.log('Attempting to connect to Pusher...');
-      
-      // Check cache first
-      const now = Date.now();
+      console.log(`Attempting to connect to Pusher... (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+
+      // Check cache first with longer cache time
       if (configCacheRef.current && (now - configCacheRef.current.timestamp) < configCacheTimeout) {
         console.log('Using cached Pusher config');
         const config = configCacheRef.current.config;
-        
+
         if (!config.key || !config.cluster) {
           throw new Error('Invalid cached Pusher configuration');
         }
-        
-        // Create new Pusher instance with cached config
+
+        // Create new Pusher instance with optimized config
         const newPusher = new Pusher(config.key, {
           cluster: config.cluster,
           forceTLS: true,
+          enabledTransports: ['ws', 'wss'], // Prioritize WebSocket transports
+          disabledTransports: ['xhr_polling'], // Disable polling transports to reduce load
+          enableStats: false, // Disable stats to reduce traffic
         });
-        
-        // Set up connection event handlers
+
+        // Set up connection event handlers with intelligent retry
         newPusher.connection.bind('connecting', () => {
           console.log('Pusher connecting...');
         });
@@ -116,31 +145,36 @@ export function usePusher() {
           setIsFallbackMode(false);
           setReconnectAttempts(0);
           setIsConnecting(false);
+          releaseConnection(connectionId);
         });
 
         newPusher.connection.bind('disconnected', () => {
           console.log('Pusher disconnected');
           setIsConnected(false);
           setIsConnecting(false);
+          releaseConnection(connectionId);
         });
 
         newPusher.connection.bind('error', (error: any) => {
           console.log('Pusher connection error:', error);
           setConnectionError(error.message || 'Connection failed');
           setIsConnecting(false);
-          
+          releaseConnection(connectionId);
+
           // Increment reconnect attempts
           setReconnectAttempts(prev => prev + 1);
-          
-          // Schedule reconnection with exponential backoff
+
+          // Schedule reconnection with longer exponential backoff
           const delay = getReconnectDelay(reconnectAttempts + 1);
-          console.log(`Scheduling reconnection in ${delay}ms (attempt ${reconnectAttempts + 1})`);
-          
+          console.log(`Scheduling reconnection in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts + 1})`);
+
           setTimeout(() => {
             if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
               connect();
             } else {
+              console.log('Max attempts reached, switching to fallback mode');
               setIsFallbackMode(true);
+              setIsInitializing(false);
             }
           }, delay);
         });
@@ -149,29 +183,57 @@ export function usePusher() {
         pusherClientRef.current = newPusher;
         return;
       }
-      
-      // Get fresh config (no debouncing for initial connection)
-      const response = await fetch('/api/pusher-config');
+
+      // API call debouncing
+      if (now - lastApiCallRef.current < apiCallDebounceMs) {
+        console.log('API call debounced, using fallback mode');
+        setIsFallbackMode(true);
+        setIsInitializing(false);
+        setIsConnecting(false);
+        releaseConnection(connectionId);
+        return;
+      }
+
+      lastApiCallRef.current = now;
+
+      // Get fresh config with longer timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased timeout
+
+      const response = await fetch('/api/pusher-config', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'max-age=300', // Cache for 5 minutes
+        },
+      });
+
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         throw new Error('Failed to get Pusher config');
       }
-      
+
       const config = await response.json();
-      
-      // Cache the config
+
+      // Cache the config for longer
       configCacheRef.current = {
         config,
         timestamp: now
       };
-      
+
       if (!config.key || !config.cluster) {
         throw new Error('Invalid Pusher configuration');
       }
 
-      // Create new Pusher instance
+      // Create new Pusher instance with optimized settings
       const newPusher = new Pusher(config.key, {
         cluster: config.cluster,
         forceTLS: true,
+        enabledTransports: ['ws', 'wss'], // WebSocket only
+        disabledTransports: ['xhr_polling', 'xhr_streaming'], // Disable all polling
+        enableStats: false,
+        pongTimeout: 30000, // Increase pong timeout
+        unavailableTimeout: 60000, // Increase unavailable timeout
       });
 
       // Set up connection event handlers
@@ -187,45 +249,52 @@ export function usePusher() {
         setIsFallbackMode(false);
         setReconnectAttempts(0);
         setIsConnecting(false);
+        releaseConnection(connectionId);
       });
 
       newPusher.connection.bind('disconnected', () => {
         console.log('Pusher disconnected');
         setIsConnected(false);
         setIsConnecting(false);
+        releaseConnection(connectionId);
       });
 
       newPusher.connection.bind('error', (error: any) => {
         console.log('Pusher connection error:', error);
         setConnectionError(error.message || 'Connection failed');
         setIsConnecting(false);
-        
+        releaseConnection(connectionId);
+
         // Increment reconnect attempts
         setReconnectAttempts(prev => prev + 1);
-        
+
         // Schedule reconnection with exponential backoff
         const delay = getReconnectDelay(reconnectAttempts + 1);
-        console.log(`Scheduling reconnection in ${delay}ms (attempt ${reconnectAttempts + 1})`);
-        
+        console.log(`Scheduling reconnection in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts + 1})`);
+
         setTimeout(() => {
           if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             connect();
           } else {
+            console.log('Max attempts reached, switching to fallback mode');
             setIsFallbackMode(true);
+            setIsInitializing(false);
           }
         }, delay);
       });
 
       setPusher(newPusher);
       pusherClientRef.current = newPusher;
-      
+
     } catch (error) {
       console.error('Failed to initialize Pusher:', error);
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
       setIsConnecting(false);
       setIsFallbackMode(true);
+      setIsInitializing(false);
+      releaseConnection(connectionId);
     }
-  }, [isConnecting, pusher, lastReconnectTime, reconnectAttempts, getReconnectDelay]);
+  }, [isConnecting, pusher, lastReconnectTime, reconnectAttempts, getReconnectDelay, acquireConnection, releaseConnection]);
 
   // Manual reconnect function
   const manualReconnect = useCallback(() => {
@@ -233,12 +302,12 @@ export function usePusher() {
       console.log('Manually disconnecting existing Pusher instance...');
       pusher.disconnect();
     }
-    
+
     // Reset state
     setReconnectAttempts(0);
     setConnectionError(null);
     setIsFallbackMode(false);
-    
+
     // Wait a bit before reconnecting
     setTimeout(() => {
       connect();
@@ -255,27 +324,27 @@ export function usePusher() {
   useEffect(() => {
     const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
       console.log('🔄 Page unloading, cleaning up user...');
-      
+
       // Get current user from localStorage or session
       const currentUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser') || localStorage.getItem('ticTacToeUser');
-      
+
       if (currentUser) {
         try {
           const userData = JSON.parse(currentUser);
           console.log(`🧹 Cleaning up user ${userData.username} on page unload`);
-          
+
           // Send cleanup request to server
           await fetch('/api/clear-auth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              username: userData.username, 
-              action: 'signout' 
+            body: JSON.stringify({
+              username: userData.username,
+              action: 'signout'
             }),
             // Use keepalive to ensure request completes
             keepalive: true
           });
-          
+
           // Clear games state immediately
           clearGames();
         } catch (error) {
@@ -340,7 +409,7 @@ export function usePusher() {
       pusherClient.disconnect();
       pusherClientRef.current = null;
       setIsConnected(false);
-      
+
       // Clear connection attempt flag and timeouts
       connectionAttemptRef.current = false;
       if (connectionTimeoutRef.current) {
@@ -355,11 +424,11 @@ export function usePusher() {
   // Join a game channel
   const joinGame = useCallback(async (gameId: string, userName: string) => {
     console.log('🔌 usePusher: joinGame called with gameId:', gameId, 'userName:', userName);
-    
+
     try {
       const pusherClient = pusherClientRef.current;
       console.log('🔌 usePusher: pusherClient available:', !!pusherClient);
-      
+
       if (!pusherClient) {
         console.error('❌ usePusher: Pusher client not initialized');
         return;
@@ -382,7 +451,7 @@ export function usePusher() {
       try {
         const response = await fetch(`/api/games/${gameId}`);
         console.log('🔌 usePusher: Game data API response status:', response.status);
-        
+
         if (response.ok) {
           const gameData = await response.json();
           console.log('✅ usePusher: Fetched current game data:', gameData);
@@ -507,7 +576,7 @@ export function usePusher() {
       console.error('Pusher client not initialized or not connected');
       return;
     }
-    
+
     // Add a small delay to ensure connection is stable
     setTimeout(() => {
       if (pusher && pusher.connection.state === 'connected') {
@@ -523,7 +592,7 @@ export function usePusher() {
   const subscribeToLobby = useCallback(() => {
     console.log('🔌 usePusher: subscribeToLobby called - pusher:', !!pusher, 'isConnected:', isConnected);
     console.log('🔌 usePusher: Browser:', navigator.userAgent);
-    
+
     if (!pusher || !isConnected) {
       console.error('❌ usePusher: Pusher not connected, cannot subscribe to lobby');
       console.error('❌ usePusher: pusher state:', pusher?.connection?.state);
@@ -533,7 +602,7 @@ export function usePusher() {
     console.log('🔌 usePusher: Subscribing to lobby channel...');
     const lobbyChannel = pusher.subscribe('lobby');
     console.log('✅ usePusher: Successfully subscribed to lobby channel');
-    
+
     // Add subscription success callback
     lobbyChannel.bind('pusher:subscription_succeeded', () => {
       console.log('✅ usePusher: Lobby subscription succeeded');
@@ -542,7 +611,7 @@ export function usePusher() {
     lobbyChannel.bind('pusher:subscription_error', (error: any) => {
       console.error('❌ usePusher: Lobby subscription error:', error);
     });
-    
+
     lobbyChannel.bind('game-created', (data: { game: Game }) => {
       console.log('🔌 usePusher: Game created in lobby:', data.game);
       setGames(prev => {
@@ -571,7 +640,7 @@ export function usePusher() {
     // Clear games state on initial load to prevent stale data
     console.log('🧹 usePusher: Clearing games state on initial load...');
     setGames([]);
-    
+
     // Only attempt connection if not already connected and not already attempting
     if (!isConnected && !connectionAttemptRef.current) {
       connect();
@@ -600,32 +669,48 @@ export function usePusher() {
     }
   }, [isConnected, subscribeToLobby]);
 
-  // Improved polling with rate limiting
+  // Much less aggressive polling with exponential backoff
   useEffect(() => {
-    if (!isConnected && !isFallbackMode) {
+    // Only enable polling in fallback mode and much less frequently
+    if (!isFallbackMode) {
       return;
     }
 
     let pollInterval: NodeJS.Timeout;
-    
-    if (isFallbackMode) {
-      // Reduced polling frequency to avoid rate limits
-      pollInterval = setInterval(() => {
-        // Only poll if not connected and not currently connecting
-        if (!isConnected && !isConnecting) {
-          console.log('Polling for updates (fallback mode)...');
-          // Trigger a re-fetch of data
-          window.dispatchEvent(new CustomEvent('pusher-poll'));
+    let pollAttempts = 0;
+    const maxPollAttempts = 5; // Limit polling attempts
+
+    if (isFallbackMode && !isConnected) {
+      console.log('Starting reduced-frequency polling in fallback mode...');
+
+      // Much less frequent polling with exponential backoff
+      const doPoll = () => {
+        if (pollAttempts >= maxPollAttempts) {
+          console.log('Max polling attempts reached, stopping polls');
+          return;
         }
-      }, POLLING_INTERVAL);
+
+        pollAttempts++;
+        console.log(`Polling for updates (attempt ${pollAttempts}/${maxPollAttempts})...`);
+
+        // Trigger a re-fetch of data less frequently
+        window.dispatchEvent(new CustomEvent('pusher-poll'));
+
+        // Exponential backoff for polling
+        const nextPollDelay = POLLING_INTERVAL * Math.pow(1.5, pollAttempts - 1);
+        pollInterval = setTimeout(doPoll, Math.min(nextPollDelay, 300000)); // Cap at 5 minutes
+      };
+
+      // Start first poll after initial delay
+      pollInterval = setTimeout(doPoll, POLLING_INTERVAL);
     }
 
     return () => {
       if (pollInterval) {
-        clearInterval(pollInterval);
+        clearTimeout(pollInterval);
       }
     };
-  }, [isConnected, isFallbackMode, isConnecting]);
+  }, [isFallbackMode, isConnected]);
 
   return {
     pusher,
@@ -680,7 +765,7 @@ export function useUserChannel(userId: string) {
     const userChannel = pusher.subscribe(CHANNELS.USER(userId));
     setChannel(userChannel);
 
-  return () => {
+    return () => {
       pusher.unsubscribe(CHANNELS.USER(userId));
       setChannel(null);
     };

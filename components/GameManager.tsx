@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
 import { usePusher } from '@/hooks/usePusher';
+import React, { useCallback, useEffect, useState } from 'react';
 
 interface Game {
   id: string;
@@ -22,7 +22,7 @@ interface GameManagerProps {
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
   const { isConnected, games: pusherGames, subscribeToLobby } = usePusher();
-  
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +66,57 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     refreshGames();
   }, [refreshGames]);
 
+  // Reduced polling for games to prevent overload
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    if (userName && showCreateForm && !isConnected) {
+      console.log('Starting reduced-frequency game polling...');
+
+      // Much less frequent polling - every 2 minutes instead of constant
+      pollInterval = setInterval(async () => {
+        try {
+          console.log('Polling for game updates...');
+          const response = await fetch('/api/game/list');
+          if (response.ok) {
+            const fetchedGames = await response.json();
+            // Only update if games actually changed
+            if (JSON.stringify(fetchedGames) !== JSON.stringify(games)) {
+              console.log('Games updated from polling:', fetchedGames);
+              // Update via a custom event to avoid direct state manipulation
+              window.dispatchEvent(new CustomEvent('games-updated', {
+                detail: fetchedGames
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Error polling for games:', error);
+        }
+      }, 120000); // 2 minutes instead of frequent polling
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [userName, showCreateForm, isConnected, games]);
+
+  // Listen for custom game update events
+  useEffect(() => {
+    const handleGamesUpdate = (event: CustomEvent) => {
+      console.log('Received games update event');
+      // Update games state from polling result
+      setFallbackGames(event.detail);
+    };
+
+    window.addEventListener('games-updated', handleGamesUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('games-updated', handleGamesUpdate as EventListener);
+    };
+  }, []);
+
   const handleCreateGame = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGameName.trim()) return;
@@ -93,7 +144,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       }
 
       setIsLoading(true);
-      
+
       const response = await fetch('/api/game/create', {
         method: 'POST',
         headers: {
@@ -115,7 +166,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       console.log('🎮 GameManager: Game creation successful, calling onJoinGame with ID:', data.game.id);
       setNewGameName('');
       setShowCreateForm(false);
-      
+
       // Optionally, automatically join the created game
       if (onJoinGame) {
         console.log('🎮 GameManager: Calling onJoinGame callback...');
@@ -148,7 +199,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       }
 
       console.log('Joining game:', gameId, 'as user:', userName);
-      
+
       const response = await fetch('/api/game/join', {
         method: 'POST',
         headers: {
@@ -167,7 +218,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       }
 
       console.log('Joined game successfully:', data.game);
-      
+
       // Navigate to the game
       if (onJoinGame) {
         onJoinGame(gameId);
@@ -200,9 +251,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
   const getConnectionStatus = () => {
     if (isConnected) {
-      return { 
-        text: 'Connected', 
-        color: 'text-green-500' 
+      return {
+        text: 'Connected',
+        color: 'text-green-500'
       };
     }
     return { text: 'Disconnected', color: 'text-gray-500' };
@@ -221,7 +272,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
               {status.text}
             </span>
           </div>
-          
+
 
         </div>
       </div>
@@ -275,11 +326,10 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
               <button
                 key={filterOption}
                 onClick={() => setFilter(filterOption)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 ${
-                  filter === filterOption
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 ${filter === filterOption
                     ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white'
                     : 'bg-white/10 text-purple-200 hover:bg-white/20'
-                }`}
+                  }`}
               >
                 {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
               </button>
