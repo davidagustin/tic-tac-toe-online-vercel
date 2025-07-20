@@ -78,14 +78,18 @@ export function usePusher() {
         setIsConnected(false);
       });
 
-      pusherClient.connection.bind('error', (error: any) => {
+      pusherClient.connection.bind('error', (error: unknown) => {
         console.error('Pusher connection error:', error);
-        console.error('Error details:', {
-          code: error.code,
-          data: error.data,
-          message: error.message
-        });
-        setLastError(error.message || 'Connection error');
+        
+        // Safely extract error details
+        const errorDetails = {
+          code: error && typeof error === 'object' && 'code' in error ? (error as any).code : undefined,
+          data: error && typeof error === 'object' && 'data' in error ? (error as any).data : undefined,
+          message: error && typeof error === 'object' && 'message' in error ? (error as any).message : undefined
+        };
+        
+        console.error('Error details:', errorDetails);
+        setLastError(errorDetails.message || 'Connection error');
         setIsConnected(false);
         setIsInitializing(false);
         
@@ -110,7 +114,8 @@ export function usePusher() {
       });
 
       // Clean up timeout when error occurs
-      pusherClient.connection.bind('error', () => {
+      pusherClient.connection.bind('error', (error: unknown) => {
+        console.log('Cleaning up timeout due to error');
         if (connectionTimeoutRef.current) {
           clearTimeout(connectionTimeoutRef.current);
           connectionTimeoutRef.current = null;
@@ -118,30 +123,51 @@ export function usePusher() {
       });
 
       // Lobby event handlers
-      lobbyChannel.current.bind(EVENTS.GAME_CREATED, (data: { game: Game }) => {
-        console.log('Game created:', data.game);
-        setGames(prev => [...prev, data.game]);
-      });
-
-      lobbyChannel.current.bind(EVENTS.GAME_UPDATED, (data: { game: Game }) => {
-        console.log('Game updated:', data.game);
-        setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
-        if (currentGame?.id === data.game.id) {
-          setCurrentGame(data.game);
+      lobbyChannel.current.bind(EVENTS.GAME_CREATED, (data: unknown) => {
+        try {
+          const gameData = data as { game: Game };
+          console.log('Game created:', gameData.game);
+          setGames(prev => [...prev, gameData.game]);
+        } catch (error) {
+          console.error('Error handling game created event:', error);
         }
       });
 
-      lobbyChannel.current.bind(EVENTS.GAME_DELETED, (data: { gameId: string }) => {
-        console.log('Game deleted:', data.gameId);
-        setGames(prev => prev.filter(g => g.id !== data.gameId));
-        if (currentGame?.id === data.gameId) {
-          setCurrentGame(null);
+      lobbyChannel.current.bind(EVENTS.GAME_UPDATED, (data: unknown) => {
+        try {
+          const gameData = data as { game: Game };
+          console.log('Game updated:', gameData.game);
+          setGames(prev => prev.map(g => g.id === gameData.game.id ? gameData.game : g));
+          if (currentGame?.id === gameData.game.id) {
+            setCurrentGame(gameData.game);
+          }
+        } catch (error) {
+          console.error('Error handling game updated event:', error);
         }
       });
 
-      lobbyChannel.current.bind(EVENTS.ERROR, (data: { message: string }) => {
-        console.error('Pusher error:', data.message);
-        setLastError(data.message);
+      lobbyChannel.current.bind(EVENTS.GAME_DELETED, (data: unknown) => {
+        try {
+          const gameData = data as { gameId: string };
+          console.log('Game deleted:', gameData.gameId);
+          setGames(prev => prev.filter(g => g.id !== gameData.gameId));
+          if (currentGame?.id === gameData.gameId) {
+            setCurrentGame(null);
+          }
+        } catch (error) {
+          console.error('Error handling game deleted event:', error);
+        }
+      });
+
+      lobbyChannel.current.bind(EVENTS.ERROR, (data: unknown) => {
+        try {
+          const errorData = data as { message: string };
+          console.error('Pusher error:', errorData.message);
+          setLastError(errorData.message);
+        } catch (error) {
+          console.error('Error handling Pusher error event:', error);
+          setLastError('Unknown Pusher error');
+        }
       });
 
     } catch (error) {
@@ -206,44 +232,79 @@ export function usePusher() {
 
       // Game-specific event handlers
       if (gameChannel.current) {
-        gameChannel.current.bind(EVENTS.GAME_UPDATED, (data: { game: Game }) => {
-          console.log('Game updated in channel:', data.game);
-          setCurrentGame(data.game);
-          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        gameChannel.current.bind(EVENTS.GAME_UPDATED, (data: unknown) => {
+          try {
+            const gameData = data as { game: Game };
+            console.log('Game updated in channel:', gameData.game);
+            setCurrentGame(gameData.game);
+            setGames(prev => prev.map(g => g.id === gameData.game.id ? gameData.game : g));
+          } catch (error) {
+            console.error('Error handling game updated event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.PLAYER_JOINED, (data: { player: string, game: Game }) => {
-          console.log('Player joined:', data.player);
-          setCurrentGame(data.game);
-          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        gameChannel.current.bind(EVENTS.PLAYER_JOINED, (data: unknown) => {
+          try {
+            const playerData = data as { player: string, game: Game };
+            console.log('Player joined:', playerData.player);
+            setCurrentGame(playerData.game);
+            setGames(prev => prev.map(g => g.id === playerData.game.id ? playerData.game : g));
+          } catch (error) {
+            console.error('Error handling player joined event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.PLAYER_LEFT, (data: { player: string, game: Game }) => {
-          console.log('Player left:', data.player);
-          setCurrentGame(data.game);
-          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        gameChannel.current.bind(EVENTS.PLAYER_LEFT, (data: unknown) => {
+          try {
+            const playerData = data as { player: string, game: Game };
+            console.log('Player left:', playerData.player);
+            setCurrentGame(playerData.game);
+            setGames(prev => prev.map(g => g.id === playerData.game.id ? playerData.game : g));
+          } catch (error) {
+            console.error('Error handling player left event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.PLAYER_MOVED, (data: { game: Game }) => {
-          console.log('Player moved:', data.game);
-          setCurrentGame(data.game);
-          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        gameChannel.current.bind(EVENTS.PLAYER_MOVED, (data: unknown) => {
+          try {
+            const gameData = data as { game: Game };
+            console.log('Player moved:', gameData.game);
+            setCurrentGame(gameData.game);
+            setGames(prev => prev.map(g => g.id === gameData.game.id ? gameData.game : g));
+          } catch (error) {
+            console.error('Error handling player moved event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.GAME_ENDED, (data: { game: Game, winner: string | null }) => {
-          console.log('Game ended:', data.game, 'Winner:', data.winner);
-          setCurrentGame(data.game);
-          setGames(prev => prev.map(g => g.id === data.game.id ? data.game : g));
+        gameChannel.current.bind(EVENTS.GAME_ENDED, (data: unknown) => {
+          try {
+            const gameData = data as { game: Game, winner: string | null };
+            console.log('Game ended:', gameData.game, 'Winner:', gameData.winner);
+            setCurrentGame(gameData.game);
+            setGames(prev => prev.map(g => g.id === gameData.game.id ? gameData.game : g));
+          } catch (error) {
+            console.error('Error handling game ended event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.CHAT_MESSAGE, (data: { message: ChatMessage }) => {
-          console.log('Chat message received:', data.message);
-          setChatMessages(prev => [...prev, data.message]);
+        gameChannel.current.bind(EVENTS.CHAT_MESSAGE, (data: unknown) => {
+          try {
+            const messageData = data as { message: ChatMessage };
+            console.log('Chat message received:', messageData.message);
+            setChatMessages(prev => [...prev, messageData.message]);
+          } catch (error) {
+            console.error('Error handling chat message event:', error);
+          }
         });
 
-        gameChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
-          console.log('Stats updated:', data.stats);
-          setPlayerStats(data.stats);
+        gameChannel.current.bind(EVENTS.STATS_UPDATED, (data: unknown) => {
+          try {
+            const statsData = data as { stats: PlayerStats };
+            console.log('Stats updated:', statsData.stats);
+            setPlayerStats(statsData.stats);
+          } catch (error) {
+            console.error('Error handling stats updated event:', error);
+          }
         });
       }
 
@@ -287,9 +348,14 @@ export function usePusher() {
       userChannel.current = pusherClient.subscribe(CHANNELS.USER(userName));
 
       if (userChannel.current) {
-        userChannel.current.bind(EVENTS.STATS_UPDATED, (data: { stats: PlayerStats }) => {
-          console.log('User stats updated:', data.stats);
-          setPlayerStats(data.stats);
+        userChannel.current.bind(EVENTS.STATS_UPDATED, (data: unknown) => {
+          try {
+            const statsData = data as { stats: PlayerStats };
+            console.log('User stats updated:', statsData.stats);
+            setPlayerStats(statsData.stats);
+          } catch (error) {
+            console.error('Error handling user stats updated event:', error);
+          }
         });
       }
 
