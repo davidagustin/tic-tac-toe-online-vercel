@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Game from './Game';
-import GameChatRoom from './GameChatRoom';
-import Lobby from './Lobby';
+import { useEffect, useState } from 'react';
 import Auth from './Auth';
 import ClientOnly from './ClientOnly';
+import Game from './Game';
+import GameChat from './GameChat';
+import Lobby from './Lobby';
 
 interface User {
   username: string;
@@ -26,7 +26,7 @@ export default function App() {
   useEffect(() => {
     // Temporarily force auth to show for testing
     setShowAuth(true);
-    
+
     // Check if user is already logged in
     // const savedUser = localStorage.getItem('ticTacToeUser');
     // if (savedUser) {
@@ -113,21 +113,19 @@ export default function App() {
                 {!currentGame && (
                   <>
                     <button
-                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                        view === 'lobby'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                      className={`px-4 py-2 rounded-md font-medium transition-colors ${view === 'lobby'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
                       onClick={() => setView('lobby')}
                     >
                       Lobby
                     </button>
                     <button
-                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                        view === 'game'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                      className={`px-4 py-2 rounded-md font-medium transition-colors ${view === 'game'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
                       onClick={() => setView('game')}
                     >
                       Game
@@ -170,24 +168,28 @@ export default function App() {
               // Show game view when a game is active
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white rounded-lg shadow-md p-6">
-                  <Game 
+                  <Game
                     gameId={currentGame.id}
                     userName={user?.username || ''}
                     onBackToLobby={handleBackToLobby}
                   />
                 </div>
                 <div className="bg-white rounded-lg shadow-md p-6">
-                  <GameChatRoom 
-                    userName={user?.username || ''} 
+                  <GameChat
+                    userName={user?.username || ''}
                     gameId={currentGame.id}
+                    title="Game Chat"
+                    description="Chat with your opponent"
+                    theme="blue"
+                    icon="💬"
                   />
                 </div>
               </div>
             ) : (
               // Show lobby view when no game is active
               <div className="bg-white rounded-lg shadow-md p-6">
-                <Lobby 
-                  userName={user?.username || ''} 
+                <Lobby
+                  userName={user?.username || ''}
                   onJoinGame={handleJoinGame}
                 />
               </div>

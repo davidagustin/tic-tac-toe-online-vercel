@@ -83,6 +83,7 @@ public
 # Storybook build outputs
 .out
 .storybook-out
+storybook-static/
 
 # Temporary folders
 tmp/
@@ -113,4 +114,42 @@ Thumbs.db
 .vercel
 
 *storybook.log
-storybook-static
+
+# Screenshots and debug images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Documentation files (except essential ones)
+*TEST_RESULTS*.md
+*POSTMAN*.md
+*DEBUG*.md
+*SUMMARY*.md
+
+# Backup and temp files
+*.bak
+*.tmp
+*.temp
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Development artifacts
+debug-*.js
+test-*.js
+*-debug.*
+*-test.*
+
+# Chromatic
+chromatic-results/
+
+# Playwright specific
+test-results/
+playwright-report/
+playwright/.cache/
