@@ -5,13 +5,13 @@ import type { Channel } from 'pusher-js';
 import Pusher from 'pusher-js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const CONNECTION_TIMEOUT = 15000; // Increased from 10 to 15 seconds
-const RECONNECT_DELAY = 30000; // Increased from 10 to 30 seconds minimum
-const MAX_RECONNECT_ATTEMPTS = 2; // Reduced from 3 to 2 attempts
-const POLLING_INTERVAL = 120000; // Increased from 30 to 120 seconds (2 minutes)
-const EXPONENTIAL_BACKOFF_BASE = 10000; // Increased from 5 to 10 seconds base
-const CONFIG_CACHE_TIME = 300000; // 5 minutes cache for config
-const API_DEBOUNCE_TIME = 5000; // 5 second debounce for API calls
+const CONNECTION_TIMEOUT = 15000; // Keep 15 seconds
+const RECONNECT_DELAY = 15000; // Reduced from 30 to 15 seconds for initial connections
+const MAX_RECONNECT_ATTEMPTS = 3; // Increased back to 3 for better reliability
+const POLLING_INTERVAL = 120000; // Keep 2 minutes for polling
+const EXPONENTIAL_BACKOFF_BASE = 5000; // Reduced from 10 to 5 seconds for faster initial retry
+const CONFIG_CACHE_TIME = 300000; // Keep 5 minutes cache
+const API_DEBOUNCE_TIME = 2000; // Reduced from 5 to 2 seconds for initial connections
 
 export function usePusher() {
   const [pusher, setPusher] = useState<Pusher | null>(null);
@@ -92,16 +92,20 @@ export function usePusher() {
       return;
     }
 
-    // Rate limit reconnection attempts with longer delays
-    if (now - lastReconnectTime < RECONNECT_DELAY) {
-      console.log(`Reconnection rate limited, waiting ${RECONNECT_DELAY - (now - lastReconnectTime)}ms...`);
+    // For initial connections, be less strict about rate limiting
+    const isInitialConnection = reconnectAttempts === 0;
+    const effectiveReconnectDelay = isInitialConnection ? 5000 : RECONNECT_DELAY;
+
+    // Rate limit reconnection attempts but be lenient on first try
+    if (!isInitialConnection && now - lastReconnectTime < effectiveReconnectDelay) {
+      console.log(`Reconnection rate limited, waiting ${effectiveReconnectDelay - (now - lastReconnectTime)}ms...`);
       releaseConnection(connectionId);
       return;
     }
 
     // Check max reconnect attempts
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.log('Max reconnection attempts reached, disabling real-time features');
+      console.log('Max reconnection attempts reached, switching to fallback mode');
       setIsFallbackMode(true);
       setIsInitializing(false);
       releaseConnection(connectionId);
@@ -164,8 +168,8 @@ export function usePusher() {
           // Increment reconnect attempts
           setReconnectAttempts(prev => prev + 1);
 
-          // Schedule reconnection with longer exponential backoff
-          const delay = getReconnectDelay(reconnectAttempts + 1);
+          // Use faster retry for initial connections
+          const delay = isInitialConnection ? 3000 : getReconnectDelay(reconnectAttempts + 1);
           console.log(`Scheduling reconnection in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts + 1})`);
 
           setTimeout(() => {
@@ -184,8 +188,9 @@ export function usePusher() {
         return;
       }
 
-      // API call debouncing
-      if (now - lastApiCallRef.current < apiCallDebounceMs) {
+      // API call debouncing - be lenient for initial connections
+      const effectiveDebounceTime = isInitialConnection ? 1000 : apiCallDebounceMs;
+      if (!isInitialConnection && now - lastApiCallRef.current < effectiveDebounceTime) {
         console.log('API call debounced, using fallback mode');
         setIsFallbackMode(true);
         setIsInitializing(false);
@@ -268,8 +273,8 @@ export function usePusher() {
         // Increment reconnect attempts
         setReconnectAttempts(prev => prev + 1);
 
-        // Schedule reconnection with exponential backoff
-        const delay = getReconnectDelay(reconnectAttempts + 1);
+        // Use faster retry for initial connections
+        const delay = isInitialConnection ? 3000 : getReconnectDelay(reconnectAttempts + 1);
         console.log(`Scheduling reconnection in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts + 1})`);
 
         setTimeout(() => {
@@ -290,7 +295,12 @@ export function usePusher() {
       console.error('Failed to initialize Pusher:', error);
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
       setIsConnecting(false);
-      setIsFallbackMode(true);
+
+      // For initial connection failures, try fallback mode sooner
+      if (isInitialConnection) {
+        console.log('Initial connection failed, enabling fallback mode');
+        setIsFallbackMode(true);
+      }
       setIsInitializing(false);
       releaseConnection(connectionId);
     }

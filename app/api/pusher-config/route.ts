@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
     }
 
     const config = {
-      key: process.env.PUSHER_KEY,
-      cluster: process.env.PUSHER_CLUSTER,
+      key: process.env.NEXT_PUBLIC_PUSHER_KEY,
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
     };
 
     if (!config.key || !config.cluster) {

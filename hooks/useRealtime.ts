@@ -26,9 +26,10 @@ export function useRealtime(config: RealtimeConfig) {
   const retryCountRef = useRef(0);
   const lastMessageIdRef = useRef<string | null>(null);
   const connectionActiveRef = useRef(false);
+  const isInitialConnectionRef = useRef(true);
 
-  const maxRetries = config.maxRetries || 2; // Reduced from 3 to 2
-  const fallbackInterval = config.fallbackInterval || 60000; // Increased from 5000 to 60000ms (1 minute)
+  const maxRetries = config.maxRetries || 3; // Back to 3 for better reliability
+  const fallbackInterval = config.fallbackInterval || 30000; // Reduced from 60s to 30s for better UX
 
   // SSE Connection with improved error handling
   const connectSSE = useCallback(() => {
@@ -52,6 +53,7 @@ export function useRealtime(config: RealtimeConfig) {
         setError(null);
         setConnectionMethod('sse');
         retryCountRef.current = 0;
+        isInitialConnectionRef.current = false;
         console.log('SSE connected successfully');
       };
 
@@ -77,12 +79,13 @@ export function useRealtime(config: RealtimeConfig) {
         connectionActiveRef.current = false;
         eventSource.close();
 
-        // Use exponential backoff before fallback
-        const delay = Math.min(5000 * Math.pow(2, retryCountRef.current), 60000); // Cap at 1 minute
+        // Use faster retry for initial connections
+        const isInitial = isInitialConnectionRef.current;
+        const delay = isInitial ? 2000 : Math.min(5000 * Math.pow(2, retryCountRef.current), 60000);
 
         if (retryCountRef.current < maxRetries) {
           retryCountRef.current++;
-          console.log(`Retrying SSE connection in ${delay}ms (attempt ${retryCountRef.current})`);
+          console.log(`Retrying SSE connection in ${delay}ms (attempt ${retryCountRef.current}) ${isInitial ? '[initial]' : ''}`);
           setTimeout(() => connectPolling(), delay);
         } else {
           console.log('Max SSE retries reached, switching to polling fallback');
@@ -95,12 +98,13 @@ export function useRealtime(config: RealtimeConfig) {
       console.error('Error setting up SSE:', error);
       setError('Failed to connect via SSE');
       connectionActiveRef.current = false;
-      // Fallback to polling with delay
-      setTimeout(() => connectPolling(), 10000); // 10 second delay
+      // Faster fallback to polling for initial connections
+      const delay = isInitialConnectionRef.current ? 3000 : 10000;
+      setTimeout(() => connectPolling(), delay);
     }
   }, [config.channel, maxRetries]);
 
-  // Polling Fallback with much reduced frequency
+  // Polling Fallback with improved frequency for user experience
   const connectPolling = useCallback(() => {
     try {
       if (pollingIntervalRef.current) {
@@ -111,9 +115,10 @@ export function useRealtime(config: RealtimeConfig) {
       setIsConnected(true);
       setError(null);
       connectionActiveRef.current = true;
+      isInitialConnectionRef.current = false;
 
       let pollCount = 0;
-      const maxPolls = 10; // Limit number of polls
+      const maxPolls = 20; // Increased from 10 to 20 for better user experience
 
       const poll = async () => {
         if (pollCount >= maxPolls) {
@@ -147,7 +152,7 @@ export function useRealtime(config: RealtimeConfig) {
       // Initial poll
       poll();
 
-      // Set up polling interval with much longer delay
+      // Set up polling interval with optimized delay
       pollingIntervalRef.current = setInterval(poll, fallbackInterval);
     } catch (error) {
       console.error('Error setting up polling:', error);
@@ -219,12 +224,12 @@ export function useRealtime(config: RealtimeConfig) {
     lastMessageIdRef.current = null;
   }, []);
 
-  // Auto-connect on mount with delay
+  // Auto-connect on mount with minimal delay
   useEffect(() => {
-    // Add a small delay to prevent immediate connection rush
+    // Reduce delay for initial connection attempt
     const timer = setTimeout(() => {
       connect();
-    }, Math.random() * 3000); // Random delay up to 3 seconds
+    }, Math.random() * 1000); // Random delay up to 1 second (reduced from 3)
 
     return () => {
       clearTimeout(timer);
