@@ -14,8 +14,8 @@ import { AuthService, type User } from './auth';
 
 interface CreateContextOptions {
     user: User | null;
-    req?: any;
-    res?: any;
+    req?: unknown;
+    res?: unknown;
 }
 
 /**
@@ -171,7 +171,7 @@ export const wsProcedure = t.procedure;
 export interface GameEvent {
     type: 'gameCreated' | 'playerJoined' | 'moveMade' | 'gameFinished' | 'playerLeft' | 'chatMessage';
     gameId: string;
-    data: any;
+    data: unknown;
     timestamp: number;
     userId?: string;
 }

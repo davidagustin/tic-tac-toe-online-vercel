@@ -255,7 +255,7 @@ export const gameRouter = createTRPCRouter({
                         lastMove: game.lastMove,
                     },
                 };
-            } catch (error) {
+            } catch (_error) {
                 throw new Error('Failed to get game state');
             }
         }),

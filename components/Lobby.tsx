@@ -1,7 +1,7 @@
 'use client';
 
 import { useTrpcGame } from '@/hooks/useTrpcGame';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import ChatRoom from './ChatRoom';
 import GameManager from './GameManager';
 
@@ -19,7 +19,7 @@ interface LobbyProps {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { isConnected, playerStats, subscribeToUser } = useTrpcGame();
+  const { isConnected, playerStats } = useTrpcGame();
   const [view, setView] = useState<'games' | 'chat'>('games');
 
   // TEMPORARILY DISABLED: Stats API calls to prevent excessive requests

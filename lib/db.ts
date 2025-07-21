@@ -86,7 +86,7 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
       );
     } else {
       // Update existing statistics
-      const _stats = currentStats.rows[0];
+      // const _stats = currentStats.rows[0]; // Unused variable removed
       await client.query(
         'UPDATE game_statistics SET games_played = games_played + 1, games_won = games_won + $1, games_lost = games_lost + $2, games_drawn = games_drawn + $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
         [
@@ -111,7 +111,7 @@ export async function updateGameStatistics(userId: number, result: 'win' | 'loss
 export async function checkDatabaseHealth() {
   const startTime = Date.now();
   try {
-    const _result = await pool.query('SELECT 1 as health_check');
+    await pool.query('SELECT 1 as health_check');
     const latency = Date.now() - startTime;
     return { status: 'healthy' as const, timestamp: new Date().toISOString(), latency };
   } catch (error) {

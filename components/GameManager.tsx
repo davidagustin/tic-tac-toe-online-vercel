@@ -149,7 +149,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       //   clearInterval(cleanupInterval);
       // }
     };
-  }, [userName, showCreateForm, isConnected]); // Removed 'games' from dependency array
+  }, [userName, showCreateForm, isConnected, games]); // Added 'games' back to dependency array
 
   // Listen for custom game update events
   useEffect(() => {

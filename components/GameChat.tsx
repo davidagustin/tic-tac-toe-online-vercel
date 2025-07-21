@@ -6,8 +6,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 interface ChatMessage {
   id: string;
   gameId: string;
-  user_name: string;
-  text: string;
+  userName: string;
+  message: string;
   timestamp: string;
 }
 
@@ -145,11 +145,11 @@ export default function GameChat({ userName, gameId, title, description, theme, 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.user_name}</span>
+                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
                         </div>
-                        <p className="text-white text-lg leading-relaxed">{message.text}</p>
+                        <p className="text-white text-lg leading-relaxed">{message.message}</p>
                       </div>
                     </div>
                   </li>

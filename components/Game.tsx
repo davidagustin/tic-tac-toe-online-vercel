@@ -187,7 +187,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       console.log('⚠️ Game Component: gameId:', gameId);
       console.log('⚠️ Game Component: currentGame exists:', !!currentGame);
     }
-  }, [currentGame, gameId, userName, hasJoinedGame, joinAttempted]); // Added hasJoinedGame and joinAttempted to dependencies
+  }, [currentGame, gameId, userName, hasJoinedGame, joinAttempted, currentGame?.players]); // Added currentGame?.players to dependencies
 
   // Handle timeout for loading state - only based on game data, not connection
   useEffect(() => {
@@ -318,7 +318,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, board, isGameEnded, isMyTurn, currentGame?.status, getMyPlayerSymbol, gameId]);
+  }, [isConnected, board, isGameEnded, isMyTurn, currentGame?.status, getMyPlayerSymbol, gameId, userName]);
 
   // Handle errors
   if (hasError) {

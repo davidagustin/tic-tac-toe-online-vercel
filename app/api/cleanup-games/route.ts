@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Import the shared game storage
 import { games, gameConnections } from '@/lib/trpc';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   console.log('🧹 Cleanup Games API: Request received');
   
   try {

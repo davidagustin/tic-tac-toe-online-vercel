@@ -45,7 +45,7 @@ export const chatRouter = createTRPCRouter({
                     success: true,
                     message: chatMessage,
                 };
-            } catch (error) {
+            } catch (_error) {
                 throw new Error('Failed to send message');
             }
         }),
@@ -69,7 +69,7 @@ export const chatRouter = createTRPCRouter({
                         messages: globalMessages.slice(-50), // Last 50 messages
                     };
                 }
-            } catch (error) {
+            } catch (_error) {
                 throw new Error('Failed to fetch messages');
             }
         }),
@@ -91,7 +91,7 @@ export const chatRouter = createTRPCRouter({
                     success: true,
                     message: 'Messages cleared',
                 };
-            } catch (error) {
+            } catch (_error) {
                 throw new Error('Failed to clear messages');
             }
         }),

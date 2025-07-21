@@ -1,7 +1,6 @@
 'use client';
 
 import Game from '@/components/Game';
-import Lobby from '@/components/Lobby';
 import GameManager from '@/components/GameManager';
 import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useEffect, useState } from 'react';
@@ -204,9 +203,9 @@ export default function Home() {
   // Expose handleJoinGame globally for testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).testJoinGame = handleJoinGame;
+      (window as unknown as { testJoinGame: typeof handleJoinGame }).testJoinGame = handleJoinGame;
     }
-  }, [user]);
+  }, [user, handleJoinGame]);
 
   // If user is authenticated and lobby should be shown, display the lobby or game
   if (user && showLobby) {

@@ -1,19 +1,20 @@
 import { applyWSSHandler } from '@trpc/server/adapters/ws';
 import { parse } from 'url';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
+import { Server } from 'http';
 import { appRouter } from './routers';
 
 interface WebSocketMessage {
     type: string;
-    data: any;
+    data: unknown;
     gameId?: string;
 }
 
 // Store active connections
-const connections = new Map<string, any>();
+const connections = new Map<string, WebSocket>();
 const gameConnections = new Map<string, Set<string>>(); // gameId -> Set of connectionIds
 
-export function createWebSocketServer(server: any) {
+export function createWebSocketServer(server: Server) {
     const wss = new WebSocketServer({ server });
 
     // Apply tRPC WebSocket handler
@@ -36,13 +37,13 @@ export function createWebSocketServer(server: any) {
             return {
                 user: user || null,
                 req,
-                res: {} as any,
+                res: {} as Response,
             };
         },
     });
 
     // Handle WebSocket connections
-    wss.on('connection', (ws, req) => {
+    wss.on('connection', (ws, _req) => {
         const connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         connections.set(connectionId, ws);
 

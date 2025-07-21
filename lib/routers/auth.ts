@@ -45,8 +45,8 @@ export const authRouter = createTRPCRouter({
                 }
 
                 // Set session cookie
-                if (ctx.res) {
-                    ctx.res.setHeader('Set-Cookie', [
+                if (ctx.res && typeof ctx.res === 'object' && 'setHeader' in ctx.res) {
+                    (ctx.res as { setHeader: (name: string, value: string[]) => void }).setHeader('Set-Cookie', [
                         `username=${username}; Path=/; HttpOnly; SameSite=Strict`,
                         `session=${user.id}; Path=/; HttpOnly; SameSite=Strict`,
                     ]);
@@ -70,8 +70,8 @@ export const authRouter = createTRPCRouter({
         .mutation(async ({ ctx }) => {
             try {
                 // Clear session cookies
-                if (ctx.res) {
-                    ctx.res.setHeader('Set-Cookie', [
+                if (ctx.res && typeof ctx.res === 'object' && 'setHeader' in ctx.res) {
+                    (ctx.res as { setHeader: (name: string, value: string[]) => void }).setHeader('Set-Cookie', [
                         'username=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
                         'session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
                     ]);
