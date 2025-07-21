@@ -2,9 +2,6 @@
   "name": "tic-tac-toe-online-vercel",
   "version": 2,
   "public": true,
-  "protectionBypass": {
-    "password": null
-  },
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 30
