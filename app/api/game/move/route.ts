@@ -3,6 +3,7 @@ import { games, broadcastGameEvent, updateUserStats } from '@/lib/trpc';
 
 // Helper function to check for winner
 function checkWinner(board: string[]): string | null {
+  console.log('🔍 checkWinner: Board array:', board);
   const lines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
@@ -10,11 +11,14 @@ function checkWinner(board: string[]): string | null {
   ];
 
   for (const [a, b, c] of lines) {
+    console.log(`🔍 checkWinner: Checking line [${a}, ${b}, ${c}]: [${board[a]}, ${board[b]}, ${board[c]}]`);
     if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      console.log(`🔍 checkWinner: Winner found! ${board[a]} wins on line [${a}, ${b}, ${c}]`);
       return board[a];
     }
   }
 
+  console.log('🔍 checkWinner: No winner found');
   return null;
 }
 
@@ -68,7 +72,10 @@ export async function POST(request: NextRequest) {
 
     // Check for winner
     const winner = checkWinner(game.board);
+    console.log('🎯 Move API: Board after move:', game.board);
+    console.log('🎯 Move API: Winner check result:', winner);
     if (winner) {
+      console.log('🎯 Move API: Game finished! Winner:', winner);
       game.status = 'finished';
       game.winner = userName;
       
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest) {
         updateUserStats(otherPlayer, 'loss');
       }
     } else if (game.board.every(cell => cell !== '')) {
+      console.log('🎯 Move API: Game finished! Tie game');
       game.status = 'finished';
       game.winner = 'tie';
       
@@ -87,6 +95,7 @@ export async function POST(request: NextRequest) {
         updateUserStats(player, 'draw');
       });
     } else {
+      console.log('🎯 Move API: Game continues, switching turns');
       // Switch turns
       game.currentPlayer = game.players.find(p => p !== game.currentPlayer) || game.currentPlayer;
     }

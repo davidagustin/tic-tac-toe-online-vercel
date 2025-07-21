@@ -24,7 +24,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
   console.log('🎮 GameManager: Component mounted with onJoinGame callback:', !!onJoinGame);
   const { isConnected, games: pusherGames, subscribeToLobby } = useTrpcGame();
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(true); // Show create form by default
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'playing'>('all');
@@ -66,7 +66,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
   useEffect(() => {
     refreshGames();
     
-    // Clean up abandoned games on component mount
+    // TEMPORARILY DISABLED: Clean up abandoned games on component mount
+    // This was causing games to be cleared immediately after creation
+    /*
     const cleanupAbandonedGames = async () => {
       try {
         console.log('🧹 Auto-cleanup on mount...');
@@ -89,12 +91,13 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     };
     
     cleanupAbandonedGames();
+    */
   }, [refreshGames]);
 
   // Reduced polling for games to prevent overload
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
-    let cleanupInterval: NodeJS.Timeout;
+    // let cleanupInterval: NodeJS.Timeout; // TEMPORARILY DISABLED
 
     if (userName && showCreateForm && !isConnected) {
       console.log('Starting reduced-frequency game polling...');
@@ -120,7 +123,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
         }
       }, 120000); // 2 minutes
 
-      // Periodic cleanup of abandoned games - every 5 minutes
+      // TEMPORARILY DISABLED: Periodic cleanup of abandoned games - every 5 minutes
+      // This was causing games to be cleared immediately after creation
+      /*
       cleanupInterval = setInterval(async () => {
         try {
           console.log('Running periodic game cleanup...');
@@ -133,15 +138,16 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
           console.error('Error during cleanup:', error);
         }
       }, 300000); // 5 minutes
+      */
     }
 
     return () => {
       if (pollInterval) {
         clearInterval(pollInterval);
       }
-      if (cleanupInterval) {
-        clearInterval(cleanupInterval);
-      }
+      // if (cleanupInterval) { // TEMPORARILY DISABLED
+      //   clearInterval(cleanupInterval);
+      // }
     };
   }, [userName, showCreateForm, isConnected]); // Removed 'games' from dependency array
 
@@ -162,7 +168,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
   const handleCreateGame = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🎮 GameManager: handleCreateGame called');
     if (!newGameName.trim()) return;
+    console.log('🎮 GameManager: Creating game with name:', newGameName);
 
     try {
       // Client-side validation
@@ -213,7 +221,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
       // Optionally, automatically join the created game
       if (onJoinGame) {
-        console.log('🎮 GameManager: Calling onJoinGame callback...');
+        console.log('🎮 GameManager: Calling onJoinGame callback with gameId:', data.game.id);
         try {
           onJoinGame(data.game.id);
           console.log('🎮 GameManager: onJoinGame callback completed');
@@ -277,6 +285,11 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     }
   }, [userName, onJoinGame, games]);
 
+  const handleShowCreateForm = () => {
+    console.log('🎮 GameManager: Create Game button clicked');
+    setShowCreateForm(true);
+  };
+
   const getStatusColor = (status: Game['status']) => {
     switch (status) {
       case 'waiting': return 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-300 border-yellow-400/30';
@@ -300,13 +313,13 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div data-testid="lobby-root" className="space-y-4 sm:space-y-6">
       {/* Create Game Section */}
       <div className="card">
         <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 sm:mb-6">
           <h2 className="mobile-heading font-bold text-white">Create New Game</h2>
           <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={handleShowCreateForm}
             className="btn-primary w-full sm:w-auto touch-target"
           >
             {showCreateForm ? 'Cancel' : 'Create Game'}
@@ -332,6 +345,7 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
             </div>
             <button
               type="submit"
+              data-testid="create-game-submit"
               disabled={isLoading || !newGameName.trim()}
               className="btn-primary w-full"
             >

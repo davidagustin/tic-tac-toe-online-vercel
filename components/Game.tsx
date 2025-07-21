@@ -378,7 +378,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 mobile-padding py-4 sm:py-6">
+    <div data-testid="game-root" className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 mobile-padding py-4 sm:py-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-6 sm:mb-8">

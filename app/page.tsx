@@ -2,6 +2,7 @@
 
 import Game from '@/components/Game';
 import Lobby from '@/components/Lobby';
+import GameManager from '@/components/GameManager';
 import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useEffect, useState } from 'react';
 
@@ -193,11 +194,19 @@ export default function Home() {
     if (user) {
       console.log('🎮 Main Page: Setting currentGame state...');
       setCurrentGame({ gameId, userName: user.username });
-      console.log('🎮 Main Page: currentGame state set');
+      setShowLobby(false);
+      console.log('🎮 Main Page: State updated - currentGame set to:', { gameId, userName: user.username });
     } else {
-      console.log('🎮 Main Page: No user found, cannot set currentGame');
+      console.log('⚠️ Main Page: No user found, cannot join game');
     }
   };
+
+  // Expose handleJoinGame globally for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).testJoinGame = handleJoinGame;
+    }
+  }, [user]);
 
   // If user is authenticated and lobby should be shown, display the lobby or game
   if (user && showLobby) {
@@ -270,7 +279,7 @@ export default function Home() {
 
           {/* Lobby Content */}
           <div className="max-w-7xl mx-auto mobile-padding py-4 sm:py-8">
-            <Lobby userName={user.username} onJoinGame={handleJoinGame} />
+            <GameManager userName={user.username} onJoinGame={handleJoinGame} />
           </div>
         </div>
       </ClientOnly>

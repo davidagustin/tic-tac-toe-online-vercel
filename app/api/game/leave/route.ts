@@ -10,7 +10,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { gameId, userName } = body;
     
+    // Add detailed logging
     console.log('🚪 Leave API: Request body:', { gameId, userName });
+    console.log('🚪 Leave API: Call stack:', new Error().stack);
 
     if (!gameId || !userName) {
       return NextResponse.json({ 
