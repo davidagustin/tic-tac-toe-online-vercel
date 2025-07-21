@@ -1,8 +1,15 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
-import type { ChatMessage } from '@/lib/ably';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+interface ChatMessage {
+  id: string;
+  gameId: string;
+  user_name: string;
+  text: string;
+  timestamp: string;
+}
 
 interface GameChatProps {
   userName: string;
@@ -14,7 +21,7 @@ interface GameChatProps {
 }
 
 export default function GameChat({ userName, gameId, title, description, theme, icon }: GameChatProps) {
-  const { isConnected, chatMessages } = useAbly();
+  const { isConnected, chatMessages } = useTrpcGame();
   const [text, setText] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -138,7 +145,7 @@ export default function GameChat({ userName, gameId, title, description, theme, 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
+                          <span className="text-purple-300 font-semibold text-sm">{message.user_name}</span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
                         </div>

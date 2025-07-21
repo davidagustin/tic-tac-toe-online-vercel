@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { games, broadcastGameEvent } from '@/lib/trpc';
-
-// In-memory storage for game statistics
-const userStats = new Map<string, { wins: number; losses: number; draws: number }>();
+import { games, broadcastGameEvent, updateUserStats } from '@/lib/trpc';
 
 // Helper function to check for winner
 function checkWinner(board: string[]): string | null {
@@ -21,15 +18,7 @@ function checkWinner(board: string[]): string | null {
   return null;
 }
 
-// Helper function to update user statistics
-function updateUserStats(username: string, result: 'win' | 'loss' | 'draw') {
-  if (!userStats.has(username)) {
-    userStats.set(username, { wins: 0, losses: 0, draws: 0 });
-  }
-  
-  const stats = userStats.get(username)!;
-  stats[result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws']++;
-}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,11 +29,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Game ID, position, and user name are required' }, { status: 400 });
     }
 
+    console.log('🎯 Move API: Looking for gameId:', gameId);
+    console.log('🎯 Move API: Available games:', Array.from(games.keys()));
+    
     const game = games.get(gameId);
 
     if (!game) {
+      console.log('❌ Move API: Game not found');
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
+    
+    console.log('✅ Move API: Found game:', game);
 
     if (game.status !== 'playing') {
       return NextResponse.json({ error: 'Game is not active' }, { status: 400 });

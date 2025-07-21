@@ -2,7 +2,7 @@
 
 import Game from '@/components/Game';
 import Lobby from '@/components/Lobby';
-import { useAbly } from '@/hooks/useAbly';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useEffect, useState } from 'react';
 
 // Client-only wrapper to prevent hydration issues
@@ -20,8 +20,8 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Error boundary component for safer Ably usage
-class AblyErrorBoundary extends React.Component<
+// Error boundary component for safer tRPC usage
+class TrpcErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error?: Error }
 > {
@@ -31,12 +31,12 @@ class AblyErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError(error: Error) {
-    console.error('Ably Error Boundary caught an error:', error);
+    console.error('tRPC Error Boundary caught an error:', error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Ably Error Boundary error details:', error, errorInfo);
+    console.error('tRPC Error Boundary error details:', error, errorInfo);
   }
 
   render() {
@@ -53,30 +53,17 @@ class AblyErrorBoundary extends React.Component<
   }
 }
 
-// Safe Ably hook with fallback
-function useSafeAbly() {
+// Safe tRPC hook with fallback
+function useSafeTrpc() {
   try {
-    // Use the real Ably hook
-    return useAbly();
+    // Use the real tRPC hook
+    return useTrpcGame();
   } catch (error) {
-    console.error('Ably hook error:', error);
+    console.error('tRPC hook error:', error);
 
     // Return fallback values
     return {
-      ably: null,
       isConnected: false,
-      isInitializing: false,
-      connectionError: 'Connection failed',
-      reconnectAttempts: 0,
-      connect: () => { },
-      disconnect: () => { },
-      joinGame: async () => { },
-      leaveGame: () => { },
-      subscribeToLobby: () => { },
-      games: [],
-      currentGame: null,
-      chatMessages: [],
-      playerStats: null,
       clearGames: () => console.log('🧹 Clearing games (fallback)'),
     };
   }
@@ -98,8 +85,13 @@ export default function Home() {
   const [showLobby, setShowLobby] = useState(false);
   const [currentGame, setCurrentGame] = useState<{ gameId: string; userName: string } | null>(null);
 
-  // Use safe Ably hook with error handling
-  const { isConnected, clearGames } = useSafeAbly();
+  // Use safe tRPC hook with error handling
+  const { isConnected, clearGames } = useSafeTrpc();
+
+  // Monitor currentGame state changes
+  useEffect(() => {
+    console.log('🎮 Main Page: currentGame state changed:', currentGame);
+  }, [currentGame]);
 
   // Simplified cleanup for debugging  
   useEffect(() => {
@@ -196,13 +188,20 @@ export default function Home() {
   };
 
   const handleJoinGame = (gameId: string) => {
+    console.log('🎮 Main Page: handleJoinGame called with gameId:', gameId);
+    console.log('🎮 Main Page: user exists:', !!user);
     if (user) {
+      console.log('🎮 Main Page: Setting currentGame state...');
       setCurrentGame({ gameId, userName: user.username });
+      console.log('🎮 Main Page: currentGame state set');
+    } else {
+      console.log('🎮 Main Page: No user found, cannot set currentGame');
     }
   };
 
   // If user is authenticated and lobby should be shown, display the lobby or game
   if (user && showLobby) {
+    console.log('🎮 Main Page: Rendering decision - currentGame:', currentGame, 'user:', user.username);
     // If there's an active game, show the game component
     if (currentGame) {
       return (
@@ -329,7 +328,7 @@ export default function Home() {
                 <input
                   type="text"
                   id="username"
-                  name="userName"
+                  name="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="input-primary input-mobile"
@@ -410,7 +409,7 @@ export default function Home() {
 
             {/* Connection Status with Error Boundary */}
             <div className="mt-4 sm:mt-6 text-center">
-              <AblyErrorBoundary>
+              <TrpcErrorBoundary>
                 <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs ${isConnected
                   ? 'bg-green-500/20 text-green-300 border border-green-400/30'
                   : 'bg-red-500/20 text-red-300 border border-red-400/30'
@@ -418,7 +417,7 @@ export default function Home() {
                   <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
                   <span>{isConnected ? 'Real-time connected' : 'Offline mode'}</span>
                 </div>
-              </AblyErrorBoundary>
+              </TrpcErrorBoundary>
             </div>
           </div>
         </div>

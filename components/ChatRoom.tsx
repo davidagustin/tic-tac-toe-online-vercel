@@ -1,6 +1,6 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Message {
@@ -19,7 +19,7 @@ interface ChatRoomProps {
 }
 
 export default function ChatRoom({ userName, title, description, theme, icon }: ChatRoomProps) {
-  const { isConnected, chatMessages } = useAbly();
+  const { isConnected, chatMessages } = useTrpcGame();
   const [text, setText] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -166,7 +166,7 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
                           <span className="text-purple-300 font-semibold text-sm">
-                            {'userName' in message ? message.userName : message.user_name}
+                            {('userName' in message ? message.userName : message.user_name) as string}
                           </span>
                           <span className="text-purple-400 text-xs">•</span>
                           <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>

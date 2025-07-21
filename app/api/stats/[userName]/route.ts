@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// In-memory storage for game statistics (shared with other routes)
-// In a real app, this would be in a database
-const userStats = new Map<string, { wins: number; losses: number; draws: number }>();
+import { userStats } from '@/lib/trpc';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userName: string } }
+  { params }: { params: Promise<{ userName: string }> }
 ) {
   try {
-    const { userName } = params;
+    const { userName } = await params;
 
     if (!userName) {
       return NextResponse.json({ error: 'Username is required' }, { status: 400 });

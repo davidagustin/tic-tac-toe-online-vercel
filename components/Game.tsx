@@ -1,7 +1,7 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 
 interface GameProps {
   gameId: string;
@@ -18,34 +18,129 @@ const INITIAL_BOARD: BoardState = [
 ];
 
 export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
-  const { isConnected, currentGame, joinGame, leaveGame } = useAbly();
+  const { isConnected, currentGame, joinGame, leaveGame, subscribeToLobby } = useTrpcGame();
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [gameMessage, setGameMessage] = useState<string>("");
   const [hasError, setHasError] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showTimeoutMessage, setShowTimeoutMessage] = useState<boolean>(false);
+  const [hasJoinedGame, setHasJoinedGame] = useState<boolean>(false);
+  const [joinAttempted, setJoinAttempted] = useState<boolean>(false);
+  const joinAttemptRef = useRef<boolean>(false);
 
   console.log('🎮 Game Component: Mounted with gameId:', gameId, 'userName:', userName);
   console.log('🎮 Game Component: Current game from Pusher:', currentGame);
   console.log('🎮 Game Component: isConnected:', isConnected);
   console.log('🎮 Game Component: Browser:', typeof window !== 'undefined' ? navigator.userAgent : 'Server');
 
-  // Join game channel when component mounts
+  // Handle browser disconnect/close - automatically leave game
   useEffect(() => {
-    console.log('🎮 Game Component: useEffect triggered - isConnected:', isConnected, 'gameId:', gameId);
+    const handleBeforeUnload = async () => {
+      if (gameId && userName && hasJoinedGame) {
+        console.log('🚪 Browser closing - leaving game automatically');
+        try {
+          await leaveGame(gameId, userName);
+        } catch (error) {
+          console.error('Error leaving game on browser close:', error);
+        }
+      }
+    };
 
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && gameId && userName && hasJoinedGame) {
+        console.log('🚪 Page hidden - leaving game automatically');
+        try {
+          await leaveGame(gameId, userName);
+        } catch (error) {
+          console.error('Error leaving game on page hide:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [gameId, userName, hasJoinedGame, leaveGame]);
+
+  // Join game channel when component mounts - FIXED: Only call once
+  useEffect(() => {
+    console.log('🎮 Game Component: useEffect triggered - isConnected:', isConnected, 'gameId:', gameId, 'joinAttempted:', joinAttempted, 'joinAttemptRef:', joinAttemptRef.current);
+
+    // Start polling immediately with the gameId to fetch game data
     if (isConnected && gameId) {
-      console.log('🎮 Game Component: Attempting to join game...');
-      joinGame(gameId, userName).then(() => {
-        console.log('✅ Game Component: Successfully called joinGame');
-      }).catch(error => {
-        console.error('❌ Game Component: Error joining game:', error);
-        setHasError(true);
-      });
-    } else {
-      console.log('⚠️ Game Component: Cannot join game - isConnected:', isConnected, 'gameId:', gameId);
+      console.log('🎮 Game Component: Starting polling with gameId:', gameId);
+      // Start polling to fetch game data
+      subscribeToLobby(gameId);
     }
-  }, [isConnected, gameId, userName, joinGame]);
+
+    if (isConnected && gameId && !joinAttempted && !joinAttemptRef.current) {
+      console.log('🎮 Game Component: Checking if user is already in game...');
+      
+      // Check if user is already in the game
+      const isAlreadyInGame = currentGame?.players?.includes(userName);
+      console.log('🎮 Game Component: User already in game:', isAlreadyInGame);
+      
+      if (isAlreadyInGame) {
+        console.log('🎮 Game Component: User already in game, skipping join attempt');
+        setHasJoinedGame(true);
+        setJoinAttempted(true);
+        joinAttemptRef.current = true;
+        return;
+      }
+      
+      console.log('🎮 Game Component: Attempting to join game...');
+      setJoinAttempted(true);
+      joinAttemptRef.current = true;
+      
+      // Add debouncing to prevent rapid calls
+      const timeoutId = setTimeout(async () => {
+        try {
+          await joinGame(gameId, userName);
+          console.log('✅ Game Component: Successfully called joinGame');
+          setHasJoinedGame(true);
+        } catch (error) {
+          console.error('❌ Game Component: Error joining game:', error);
+          setHasError(true);
+          setJoinAttempted(false); // Reset flag on error so we can retry
+          joinAttemptRef.current = false; // Reset ref on error
+          
+          // Retry after a delay if it's a rate limit or network error
+          if (error instanceof Error && (error.message.includes('Rate limited') || error.message.includes('Network'))) {
+            console.log('🔄 Game Component: Retrying join game after error...');
+            setTimeout(() => {
+              setJoinAttempted(false);
+              joinAttemptRef.current = false;
+            }, 2000);
+          }
+        }
+      }, 1000); // 1 second debounce
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      console.log('⚠️ Game Component: Cannot join game - isConnected:', isConnected, 'gameId:', gameId, 'joinAttempted:', joinAttempted, 'joinAttemptRef:', joinAttemptRef.current);
+    }
+  }, [isConnected, gameId, userName, joinAttempted, subscribeToLobby, joinGame]); // Added subscribeToLobby and joinGame to dependencies
+
+  // Cleanup function to leave game when component unmounts
+  useEffect(() => {
+    return () => {
+      if (gameId && userName && hasJoinedGame) {
+        console.log('🚪 Component unmounting - leaving game automatically');
+        // Use a synchronous approach for cleanup to ensure it runs
+        fetch('/api/game/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId, userName }),
+        }).catch(error => {
+          console.error('Error leaving game on unmount:', error);
+        });
+      }
+    };
+  }, [gameId, userName, hasJoinedGame]);
 
   // Update local state when game data changes
   useEffect(() => {
@@ -54,6 +149,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     console.log('🎮 Game Component: Current game status:', currentGame?.status);
     console.log('🎮 Game Component: Current game currentPlayer:', currentGame?.currentPlayer);
     console.log('🎮 Game Component: Current user:', userName);
+    console.log('🎮 Game Component: Game data update effect - hasJoinedGame:', hasJoinedGame, 'joinAttempted:', joinAttempted);
 
     if (currentGame && currentGame.id === gameId) {
       console.log('✅ Game Component: Game data matched, updating board and UI');
@@ -61,9 +157,9 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       // Convert flat board array to 2D array - with safety check
       if (currentGame.board && Array.isArray(currentGame.board) && currentGame.board.length === 9) {
         const newBoard: BoardState = [
-          [currentGame.board[0], currentGame.board[1], currentGame.board[2]],
-          [currentGame.board[3], currentGame.board[4], currentGame.board[5]],
-          [currentGame.board[6], currentGame.board[7], currentGame.board[8]]
+          [currentGame.board[0] || null, currentGame.board[1] || null, currentGame.board[2] || null],
+          [currentGame.board[3] || null, currentGame.board[4] || null, currentGame.board[5] || null],
+          [currentGame.board[6] || null, currentGame.board[7] || null, currentGame.board[8] || null]
         ];
         setBoard(newBoard);
       }
@@ -79,9 +175,8 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           setGameMessage("It's a draw!");
         }
       } else if (currentGame.status === 'playing') {
-        const currentPlayerName = currentGame.currentPlayer === 'X'
-          ? (currentGame.players && currentGame.players[0]) || 'Player X'
-          : (currentGame.players && currentGame.players[1]) || 'Player O';
+        // currentPlayer is the username, not the symbol
+        const currentPlayerName = currentGame.currentPlayer || 'Unknown Player';
         setGameMessage(`${currentPlayerName}'s turn`);
       } else {
         setGameMessage('Waiting for players...');
@@ -92,26 +187,31 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       console.log('⚠️ Game Component: gameId:', gameId);
       console.log('⚠️ Game Component: currentGame exists:', !!currentGame);
     }
-  }, [currentGame, gameId, userName]);
+  }, [currentGame, gameId, userName, hasJoinedGame, joinAttempted]); // Added hasJoinedGame and joinAttempted to dependencies
 
   // Handle timeout for loading state - only based on game data, not connection
   useEffect(() => {
     if (!currentGame) {
       const isChrome = typeof window !== 'undefined' && navigator.userAgent.includes('Chrome');
-      const timeoutDuration = isChrome ? 45000 : 30000; // Longer timeout for Chrome
+      const timeoutDuration = isChrome ? 30000 : 20000; // Reduced timeout for faster feedback
 
       console.log(`🎮 Game Component: Setting loading timeout for ${timeoutDuration}ms (Chrome: ${isChrome})`);
+      console.log('🎮 Game Component: Current state - hasJoinedGame:', hasJoinedGame, 'joinAttempted:', joinAttempted, 'joinAttemptRef:', joinAttemptRef.current);
 
       const timeout = setTimeout(() => {
         console.log('🎮 Game Component: Loading timeout reached');
         setShowTimeoutMessage(true);
+        // Reset flags to allow retry
+        setJoinAttempted(false);
+        joinAttemptRef.current = false;
       }, timeoutDuration);
 
       return () => clearTimeout(timeout);
     } else {
       setShowTimeoutMessage(false);
+      console.log('✅ Game Component: Game loaded successfully, clearing timeout');
     }
-  }, [currentGame]); // Removed isConnected dependency
+  }, [currentGame, hasJoinedGame, joinAttempted]); // Added dependencies for better tracking
 
   // Memoized computed values
   const isGameEnded = useMemo(() =>
@@ -120,16 +220,26 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   );
 
   const isMyTurn = useMemo(() => {
-    if (!currentGame || currentGame.status !== 'playing' || !currentGame.players) return false;
-    const playerIndex = currentGame.players.indexOf(userName);
-    return playerIndex === 0 ? currentGame.currentPlayer === 'X' : currentGame.currentPlayer === 'O';
+    console.log('🎮 Game Component: isMyTurn calculation - currentGame:', currentGame);
+    console.log('🎮 Game Component: isMyTurn calculation - userName:', userName);
+    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.currentPlayer:', currentGame?.currentPlayer);
+    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.status:', currentGame?.status);
+    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.players:', currentGame?.players);
+    
+    if (!currentGame || currentGame.status !== 'playing' || !currentGame.players) {
+      console.log('🎮 Game Component: isMyTurn = false (conditions not met)');
+      return false;
+    }
+    
+    const result = currentGame.currentPlayer === userName;
+    console.log('🎮 Game Component: isMyTurn =', result, '(currentPlayer === userName)');
+    return result;
   }, [currentGame, userName]);
 
   // Get current player name
   const getCurrentPlayerName = useMemo(() => {
-    if (!currentGame || !currentGame.currentPlayer || !currentGame.players) return 'Unknown';
-    const playerIndex = currentGame.currentPlayer === 'X' ? 0 : 1;
-    return currentGame.players[playerIndex] || 'Unknown';
+    if (!currentGame || !currentGame.currentPlayer) return 'Unknown';
+    return currentGame.currentPlayer;
   }, [currentGame]);
 
   // Get my player symbol
@@ -143,7 +253,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     try {
       setIsLoading(true);
       console.log('Game component: leaving game');
-      leaveGame();
+      // Since leaveGame API is not working, we'll just go back to lobby
       onBackToLobby();
     } catch (error) {
       console.error('Error leaving game:', error);
@@ -151,7 +261,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [leaveGame, onBackToLobby]);
+  }, [onBackToLobby]);
 
   const handleCellClick = useCallback(async (y: number, x: number) => {
     console.log('🎮 Game Component: Cell clicked at position:', y, x);
@@ -161,7 +271,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     console.log('🎮 Game Component: isMyTurn:', isMyTurn);
     console.log('🎮 Game Component: currentGame?.status:', currentGame?.status);
 
-    if (!isConnected || isGameEnded || board[y][x] !== null || !isMyTurn || currentGame?.status !== 'playing') {
+    if (!isConnected || isGameEnded || (board[y][x] !== null && board[y][x] !== '') || !isMyTurn || currentGame?.status !== 'playing') {
       console.log('🎮 Game Component: Move blocked - conditions not met');
       return;
     }
@@ -186,8 +296,8 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
         },
         body: JSON.stringify({
           gameId: gameId,
-          index: index,
-          player: playerSymbol,
+          position: index,
+          userName: userName,
         }),
       });
 

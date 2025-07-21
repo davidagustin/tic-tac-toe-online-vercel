@@ -1,6 +1,6 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import { useEffect, useState } from 'react';
 import ChatRoom from './ChatRoom';
 import GameManager from './GameManager';
@@ -19,13 +19,20 @@ interface LobbyProps {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { isConnected, playerStats, subscribeToUser } = useAbly();
+  const { isConnected, playerStats, subscribeToUser } = useTrpcGame();
   const [view, setView] = useState<'games' | 'chat'>('games');
 
-  // Subscribe to user stats when component mounts
-  useEffect(() => {
-    subscribeToUser(userName);
-  }, [subscribeToUser, userName]);
+  // TEMPORARILY DISABLED: Stats API calls to prevent excessive requests
+  // useEffect(() => {
+  //   if (!hasLoadedStats) {
+  //     const timeoutId = setTimeout(() => {
+  //       subscribeToUser(userName);
+  //       setHasLoadedStats(true);
+  //     }, 2000); // Wait 2 seconds before making the API call
+
+  //     return () => clearTimeout(timeoutId);
+  //   }
+  // }, [subscribeToUser, userName, hasLoadedStats]);
 
   // Use playerStats from Pusher hook with proper type handling
   const userStats: UserStats = playerStats ? {
@@ -42,9 +49,18 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
   };
 
   const handleJoinGame = (gameId: string) => {
-    console.log('Joining game:', gameId);
+    console.log('🎮 Lobby: handleJoinGame called with gameId:', gameId);
+    console.log('🎮 Lobby: onJoinGame callback exists:', !!onJoinGame);
     if (onJoinGame) {
-      onJoinGame(gameId);
+      console.log('🎮 Lobby: Calling onJoinGame callback...');
+      try {
+        onJoinGame(gameId);
+        console.log('🎮 Lobby: onJoinGame callback completed');
+      } catch (error) {
+        console.error('🎮 Lobby: Error in onJoinGame callback:', error);
+      }
+    } else {
+      console.log('🎮 Lobby: No onJoinGame callback provided');
     }
   };
 

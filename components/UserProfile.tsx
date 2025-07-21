@@ -1,6 +1,6 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 
@@ -25,7 +25,7 @@ interface EditFormData {
 }
 
 export default function UserProfile({ userId, onProfileUpdate, onClose }: UserProfileProps) {
-    const { isConnected } = useAbly();
+    const { isConnected } = useTrpcGame();
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

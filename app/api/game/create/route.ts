@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
     };
 
     games.set(gameId, game);
+    console.log('🎮 Create API: Game created with ID:', gameId);
+    console.log('🎮 Create API: Total games in storage:', games.size);
+    console.log('🎮 Create API: All games in storage:', Array.from(games.keys()));
 
     // Broadcast game created event
     broadcastGameEvent(gameId, {

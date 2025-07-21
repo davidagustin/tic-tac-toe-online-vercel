@@ -10,11 +10,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Game ID and user name are required' }, { status: 400 });
     }
 
+    console.log('🔍 Join API: Looking for gameId:', gameId);
+    console.log('🔍 Join API: Available games:', Array.from(games.keys()));
+    
     const game = games.get(gameId);
 
     if (!game) {
+      console.log('❌ Join API: Game not found');
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
+    
+    console.log('✅ Join API: Found game:', game);
 
     if (game.status !== 'waiting') {
       return NextResponse.json({ error: 'Game is not accepting players' }, { status: 400 });

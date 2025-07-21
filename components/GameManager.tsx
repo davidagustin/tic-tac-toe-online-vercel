@@ -1,6 +1,6 @@
 'use client';
 
-import { useAbly } from '@/hooks/useAbly';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 import React, { useCallback, useEffect, useState } from 'react';
 
 interface Game {
@@ -21,7 +21,8 @@ interface GameManagerProps {
 }
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
-  const { isConnected, games: pusherGames, subscribeToLobby } = useAbly();
+  console.log('🎮 GameManager: Component mounted with onJoinGame callback:', !!onJoinGame);
+  const { isConnected, games: pusherGames, subscribeToLobby } = useTrpcGame();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
@@ -61,19 +62,44 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     }
   }, [isConnected, subscribeToLobby]);
 
-  // Initial load of games from API
+  // Initial load of games from API and cleanup
   useEffect(() => {
     refreshGames();
+    
+    // Clean up abandoned games on component mount
+    const cleanupAbandonedGames = async () => {
+      try {
+        console.log('🧹 Auto-cleanup on mount...');
+        const currentGames = games || [];
+        for (const game of currentGames) {
+          if (game.players.length === 0 || game.status === 'finished') {
+            console.log('🧹 Auto-cleaning up game:', game.id);
+            await fetch('/api/game/leave', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ gameId: game.id, userName: 'cleanup' }),
+            });
+          }
+        }
+        // Refresh games after cleanup
+        setTimeout(() => refreshGames(), 1000);
+      } catch (error) {
+        console.error('🧹 Auto-cleanup error:', error);
+      }
+    };
+    
+    cleanupAbandonedGames();
   }, [refreshGames]);
 
   // Reduced polling for games to prevent overload
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
+    let cleanupInterval: NodeJS.Timeout;
 
     if (userName && showCreateForm && !isConnected) {
       console.log('Starting reduced-frequency game polling...');
 
-      // Much less frequent polling - every 2 minutes instead of constant
+      // Much less frequent polling - every 2 minutes
       pollInterval = setInterval(async () => {
         try {
           console.log('Polling for game updates...');
@@ -92,15 +118,32 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
         } catch (error) {
           console.error('Error polling for games:', error);
         }
-      }, 120000); // 2 minutes instead of frequent polling
+      }, 120000); // 2 minutes
+
+      // Periodic cleanup of abandoned games - every 5 minutes
+      cleanupInterval = setInterval(async () => {
+        try {
+          console.log('Running periodic game cleanup...');
+          const response = await fetch('/api/cleanup-games', { method: 'POST' });
+          if (response.ok) {
+            const result = await response.json();
+            console.log('Cleanup result:', result);
+          }
+        } catch (error) {
+          console.error('Error during cleanup:', error);
+        }
+      }, 300000); // 5 minutes
     }
 
     return () => {
       if (pollInterval) {
         clearInterval(pollInterval);
       }
+      if (cleanupInterval) {
+        clearInterval(cleanupInterval);
+      }
     };
-  }, [userName, showCreateForm, isConnected, games]);
+  }, [userName, showCreateForm, isConnected]); // Removed 'games' from dependency array
 
   // Listen for custom game update events
   useEffect(() => {
@@ -164,14 +207,19 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
 
       console.log('Game created successfully:', data.game);
       console.log('🎮 GameManager: Game creation successful, calling onJoinGame with ID:', data.game.id);
+      console.log('🎮 GameManager: onJoinGame callback exists:', !!onJoinGame);
       setNewGameName('');
       setShowCreateForm(false);
 
       // Optionally, automatically join the created game
       if (onJoinGame) {
         console.log('🎮 GameManager: Calling onJoinGame callback...');
-        onJoinGame(data.game.id);
-        console.log('🎮 GameManager: onJoinGame callback completed');
+        try {
+          onJoinGame(data.game.id);
+          console.log('🎮 GameManager: onJoinGame callback completed');
+        } catch (error) {
+          console.error('🎮 GameManager: Error in onJoinGame callback:', error);
+        }
       } else {
         console.log('🎮 GameManager: No onJoinGame callback provided');
       }
@@ -319,6 +367,39 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
               className="px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 bg-white/10 text-purple-200 hover:bg-white/20 touch-target"
             >
               {isRefreshing ? '🔄' : '🔄'}
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🧹 Manual cleanup triggered...');
+                  // Try the API first
+                  const response = await fetch('/api/cleanup-games', { method: 'POST' });
+                  if (response.ok) {
+                    const result = await response.json();
+                    console.log('🧹 Cleanup result:', result);
+                  } else {
+                    console.log('🧹 API cleanup failed, trying direct cleanup...');
+                    // Fallback: direct cleanup via leave game API
+                    const currentGames = games || [];
+                    for (const game of currentGames) {
+                      if (game.players.length === 0 || game.status === 'finished') {
+                        console.log('🧹 Cleaning up game:', game.id);
+                        await fetch('/api/game/leave', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ gameId: game.id, userName: 'cleanup' }),
+                        });
+                      }
+                    }
+                  }
+                  refreshGames(); // Refresh the games list
+                } catch (error) {
+                  console.error('🧹 Cleanup error:', error);
+                }
+              }}
+              className="px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 bg-red-500/20 text-red-300 hover:bg-red-500/30 touch-target"
+            >
+              🧹
             </button>
           </div>
         </div>

@@ -114,9 +114,12 @@ export function middleware(request: NextRequest) {
     '/api/game/create',
     '/api/game/join',
     '/api/game/move',
+    '/api/game/leave',
     '/api/games',
     '/api/chat',
     '/api/stats',
+    '/api/clear-db',
+    '/api/cleanup-games',
   ];
 
   // Check if this is an allowed API path (including dynamic routes)

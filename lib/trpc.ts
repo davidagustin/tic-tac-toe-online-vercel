@@ -210,6 +210,20 @@ export const gameConnections = new Map<string, Set<string>>();
 export const userConnections = new Map<string, Set<string>>();
 export const gameEvents = new Map<string, GameEvent[]>();
 
+// In-memory storage for user statistics
+export const userStats = new Map<string, { wins: number; losses: number; draws: number }>();
+
+// Helper function to update user statistics
+export const updateUserStats = (username: string, result: 'win' | 'loss' | 'draw') => {
+  if (!userStats.has(username)) {
+    userStats.set(username, { wins: 0, losses: 0, draws: 0 });
+  }
+  
+  const stats = userStats.get(username)!;
+  stats[result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws']++;
+  console.log(`📊 Updated stats for ${username}: ${result}`, stats);
+};
+
 // Helper functions for real-time updates
 export const addGameConnection = (gameId: string, connectionId: string) => {
     if (!gameConnections.has(gameId)) {
