@@ -99,3 +99,4 @@ playwright/.cache/
 
 # Debug files
 debug-logs/
+.vercel
