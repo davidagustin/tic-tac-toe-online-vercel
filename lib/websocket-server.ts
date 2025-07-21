@@ -43,7 +43,7 @@ export function createWebSocketServer(server: Server) {
     });
 
     // Handle WebSocket connections
-    wss.on('connection', (ws, _req) => {
+    wss.on('connection', (ws) => {
         const connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         connections.set(connectionId, ws);
 

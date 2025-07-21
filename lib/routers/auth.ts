@@ -26,8 +26,8 @@ export const authRouter = createTRPCRouter({
                         created_at: user.created_at,
                     },
                 };
-            } catch (error) {
-                throw new Error(error instanceof Error ? error.message : 'Registration failed');
+            } catch (_error) {
+                throw new Error('Registration failed');
             }
         }),
 
@@ -60,8 +60,8 @@ export const authRouter = createTRPCRouter({
                         created_at: user.created_at,
                     },
                 };
-            } catch (error) {
-                throw new Error(error instanceof Error ? error.message : 'Login failed');
+            } catch (_error) {
+                throw new Error('Login failed');
             }
         }),
 
@@ -81,7 +81,7 @@ export const authRouter = createTRPCRouter({
                     success: true,
                     message: 'Logged out successfully',
                 };
-            } catch (error) {
+            } catch (_error) {
                 throw new Error('Logout failed');
             }
         }),

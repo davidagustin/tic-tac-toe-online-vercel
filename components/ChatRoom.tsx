@@ -168,30 +168,30 @@ export default function ChatRoom({ userName, title = 'Global Chat', description 
           </div>
         ) : (
           displayMessages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex flex-col space-y-1 ${
-                message.username === userName ? 'items-end' : 'items-start'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-purple-300 font-medium">
-                  {message.username}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <div
-                className={`max-w-xs sm:max-w-md px-3 py-2 rounded-lg text-sm ${
-                  message.username === userName
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white'
+                          <div
+                key={message.id}
+                className={`flex flex-col space-y-1 ${
+                  ('username' in message ? message.username : message.userName) === userName ? 'items-end' : 'items-start'
                 }`}
               >
-                {message.message}
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-purple-300 font-medium">
+                    {'username' in message ? message.username : message.userName}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div
+                  className={`max-w-xs sm:max-w-md px-3 py-2 rounded-lg text-sm ${
+                    ('username' in message ? message.username : message.userName) === userName
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white/10 text-white'
+                  }`}
+                >
+                  {message.message}
+                </div>
               </div>
-            </div>
           ))
         )}
       </div>

@@ -180,7 +180,7 @@ export default function App() {
                     gameId={currentGame.id}
                     title="Game Chat"
                     description="Chat with your opponent"
-                    theme="blue"
+                    theme="lobby"
                     icon="💬"
                   />
                 </div>

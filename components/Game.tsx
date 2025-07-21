@@ -22,7 +22,6 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     isConnected, 
     currentGame, 
     joinGame, 
-    leaveGame, 
     subscribeToLobby, 
     refreshCurrentGame, 
     refreshChatMessages, 
@@ -238,7 +237,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   const isMyTurn = useMemo(() => {
     if (!currentGame || isGameEnded) return false;
     return currentGame.currentPlayer === userName;
-  }, [currentGame?.currentPlayer, currentGame?.status, userName, isGameEnded]);
+  }, [currentGame, userName, isGameEnded]);
 
   const getMyPlayerSymbol = useMemo(() => {
     if (!currentGame?.players) return null;
@@ -461,9 +460,9 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
             <div className="text-lg sm:text-xl font-bold text-purple-300">
               {isMyTurn ? (
                 <span className="text-green-400">Your Turn!</span>
-              ) : currentGame.currentPlayer ? (
-                <span>{currentGame.currentPlayer}'s Turn</span>
-              ) : (
+                             ) : currentGame.currentPlayer ? (
+                 <span>{currentGame.currentPlayer}&apos;s Turn</span>
+               ) : (
                 <span>Waiting...</span>
               )}
             </div>
