@@ -19,20 +19,8 @@ interface LobbyProps {
 }
 
 export default function Lobby({ userName, onJoinGame }: LobbyProps) {
-  const { isConnected, playerStats } = useTrpcGame();
+  const { isConnected, playerStats, refreshUserStats, isRefreshing } = useTrpcGame();
   const [view, setView] = useState<'games' | 'chat'>('games');
-
-  // TEMPORARILY DISABLED: Stats API calls to prevent excessive requests
-  // useEffect(() => {
-  //   if (!hasLoadedStats) {
-  //     const timeoutId = setTimeout(() => {
-  //       subscribeToUser(userName);
-  //       setHasLoadedStats(true);
-  //     }, 2000); // Wait 2 seconds before making the API call
-
-  //     return () => clearTimeout(timeoutId);
-  //   }
-  // }, [subscribeToUser, userName, hasLoadedStats]);
 
   // Use playerStats from Pusher hook with proper type handling
   const userStats: UserStats = playerStats ? {
@@ -62,6 +50,12 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
     } else {
       console.log('🎮 Lobby: No onJoinGame callback provided');
     }
+  };
+
+  // Manual refresh function for user stats
+  const handleRefreshStats = () => {
+    console.log('🔄 Manual stats refresh triggered');
+    refreshUserStats(userName);
   };
 
   return (
@@ -99,65 +93,88 @@ export default function Lobby({ userName, onJoinGame }: LobbyProps) {
         </div>
 
         <div className="card text-center">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-green-600 to-emerald-400 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
             <span className="text-white text-lg sm:text-xl">🏆</span>
           </div>
-          <h3 className="text-base sm:text-lg font-semibold text-white mb-1">Games Won</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-white mb-1">Wins</h3>
           <p className="text-xl sm:text-2xl font-bold text-green-300">{userStats.wins}</p>
         </div>
 
         <div className="card text-center">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
             <span className="text-white text-lg sm:text-xl">📊</span>
           </div>
           <h3 className="text-base sm:text-lg font-semibold text-white mb-1">Win Rate</h3>
-          <p className="text-xl sm:text-2xl font-bold text-yellow-300">
-            {(() => {
-              const totalGames = userStats.totalGames || userStats.total_games || 0;
-              return totalGames > 0 ? Math.round((userStats.wins / totalGames) * 100) : 0;
-            })()}%
+          <p className="text-xl sm:text-2xl font-bold text-blue-300">
+            {(userStats.totalGames || userStats.total_games || 0) > 0 ? 
+              Math.round((userStats.wins / (userStats.totalGames || userStats.total_games || 1)) * 100) : 0}%
           </p>
         </div>
       </div>
 
-      {/* Navigation Tabs - Mobile Optimized */}
-      <div className="max-w-4xl mx-auto mb-4 sm:mb-6">
-        <div className="flex space-x-1 bg-white/10 backdrop-blur-lg rounded-2xl p-1 border border-white/20">
+      {/* Stats Refresh Button */}
+      <div className="text-center mb-6">
+        <button
+          onClick={handleRefreshStats}
+          disabled={isRefreshing}
+          className={`btn-secondary flex items-center gap-2 px-4 py-2 mx-auto ${
+            isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'
+          }`}
+        >
+          {isRefreshing ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Refreshing Stats...
+            </>
+          ) : (
+            <>
+              <span>🔄</span>
+              Refresh Stats
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="max-w-4xl mx-auto mb-6">
+        <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
           <button
             onClick={() => setView('games')}
-            className={`flex-1 py-2 sm:py-3 px-3 sm:px-6 rounded-xl font-medium transition-all duration-300 text-sm sm:text-base touch-target ${view === 'games'
-              ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
-              : 'text-purple-200 hover:text-white hover:bg-white/10'
-              }`}
+            className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
+              view === 'games'
+                ? 'bg-purple-600 text-white'
+                : 'text-purple-200 hover:text-white hover:bg-white/10'
+            }`}
           >
-            <span className="hidden sm:inline">🎮 Games</span>
-            <span className="sm:hidden">🎮</span>
+            🎮 Games
           </button>
           <button
             onClick={() => setView('chat')}
-            className={`flex-1 py-2 sm:py-3 px-3 sm:px-6 rounded-xl font-medium transition-all duration-300 text-sm sm:text-base touch-target ${view === 'chat'
-              ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white shadow-lg'
-              : 'text-purple-200 hover:text-white hover:bg-white/10'
-              }`}
+            className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
+              view === 'chat'
+                ? 'bg-purple-600 text-white'
+                : 'text-purple-200 hover:text-white hover:bg-white/10'
+            }`}
           >
-            <span className="hidden sm:inline">💬 Chat</span>
-            <span className="sm:hidden">💬</span>
+            💬 Global Chat
           </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {view === 'games' ? (
           <GameManager userName={userName} onJoinGame={handleJoinGame} />
         ) : (
-          <ChatRoom
-            userName={userName}
-            title="Game Lobby"
-            description="Chat with other players before starting a game"
-            theme="blue"
-            icon="🏠"
-          />
+          <div className="max-w-2xl mx-auto">
+            <ChatRoom 
+              userName={userName}
+              title="Global Chat"
+              description="Chat with all players in the lobby"
+              theme="lobby"
+              icon="💬"
+            />
+          </div>
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTrpcGame } from '@/hooks/useTrpcGame';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ChatMessage {
   id: string;
@@ -14,14 +14,14 @@ interface ChatMessage {
 interface GameChatProps {
   userName: string;
   gameId: string;
-  title: string;
-  description: string;
-  theme: 'blue' | 'green';
-  icon: string;
+  title?: string;
+  description?: string;
+  theme?: 'default' | 'game' | 'lobby';
+  icon?: string;
 }
 
-export default function GameChat({ userName, gameId, title, description, theme, icon }: GameChatProps) {
-  const { isConnected, chatMessages } = useTrpcGame();
+export default function GameChat({ userName, gameId, title = 'Game Chat', description = 'Chat with your opponent', theme = 'game', icon = '🎮' }: GameChatProps) {
+  const { isConnected, chatMessages, refreshChatMessages, isRefreshing } = useTrpcGame();
   const [text, setText] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -47,156 +47,185 @@ export default function GameChat({ userName, gameId, title, description, theme, 
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Manual game chat refresh triggered');
+    await refreshChatMessages(gameId);
+  }, [refreshChatMessages, gameId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isConnected || !text.trim()) return;
+    if (!text.trim() || !isConnected) return;
 
     try {
-      // Basic client-side validation
-      if (text.length > 500) {
-        alert('Message too long. Maximum 500 characters allowed.');
-        return;
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: text.trim(),
+          userName: userName,
+          gameId: gameId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
       }
 
-      // Check for potentially malicious content
-      const suspiciousPatterns = [
-        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-        /javascript:/gi,
-        /on\w+\s*=/gi,
-        /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi
-      ];
-
-      for (const pattern of suspiciousPatterns) {
-        if (pattern.test(text)) {
-          alert('Message contains invalid content.');
-          return;
-        }
-      }
-
-      // For now, just clear the text since we don't have a sendChatMessage method
-      // In a real implementation, you would call an API endpoint to send the message
-      console.log('Game chat message would be sent:', { text, userName, gameId });
       setText('');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      console.error('Error sending message:', errorMessage);
-      alert(errorMessage);
+      
+      // Refresh chat messages after sending
+      await refreshChatMessages(gameId);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
     }
   };
 
-  const themeConfig = {
-    blue: {
-      gradient: 'from-purple-500/20 to-pink-500/20',
-      border: 'border-purple-400/30',
-      avatar: 'from-purple-500 to-pink-500',
-      focus: 'focus:ring-purple-500 focus:ring-opacity-50 ',
-      button: 'from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600',
-      shadow: 'shadow-purple-500 shadow-opacity-25',
-      loading: 'border-purple-500',
-      bgGradient: 'from-purple-900/20 to-pink-900/20'
-    },
-    green: {
-      gradient: 'from-green-500/20 to-emerald-500/20',
-      border: 'border-green-400/30',
-      avatar: 'from-green-500 to-emerald-500',
-      focus: 'focus:ring-green-500 focus:ring-opacity-50 focus:border-green-400',
-      button: 'from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600',
-      shadow: 'shadow-green-500 shadow-opacity-25',
-      loading: 'border-green-500',
-      bgGradient: 'from-green-900/20 to-emerald-900/20'
+  const getThemeClasses = () => {
+    switch (theme) {
+      case 'game':
+        return {
+          container: 'bg-purple-900/50 border-purple-500/30',
+          header: 'bg-purple-800/50',
+          input: 'bg-purple-800/30 border-purple-500/50 focus:border-purple-400',
+          button: 'bg-purple-600 hover:bg-purple-700'
+        };
+      case 'lobby':
+        return {
+          container: 'bg-blue-900/50 border-blue-500/30',
+          header: 'bg-blue-800/50',
+          input: 'bg-blue-800/30 border-blue-500/50 focus:border-blue-400',
+          button: 'bg-blue-600 hover:bg-blue-700'
+        };
+      default:
+        return {
+          container: 'bg-white/10 border-white/20',
+          header: 'bg-white/5',
+          input: 'bg-white/10 border-white/20 focus:border-white/40',
+          button: 'bg-purple-600 hover:bg-purple-700'
+        };
     }
   };
 
-  const config = themeConfig[theme];
+  const themeClasses = getThemeClasses();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">{icon} {title}</h2>
-        <p className="text-purple-200">{description}</p>
-        <div className="mt-2 text-sm text-green-300 bg-green-500/20 px-3 py-1 rounded-full inline-block">
-          🔒 Private Game Chat
+    <div className={`card ${themeClasses.container} border backdrop-blur-lg`}>
+      {/* Header with Refresh Button */}
+      <div className={`${themeClasses.header} rounded-t-lg p-4 border-b border-white/10`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl">{icon}</span>
+            <div>
+              <h3 className="text-lg font-semibold text-white">{title}</h3>
+              <p className="text-sm text-purple-200">{description}</p>
+            </div>
+          </div>
+          
+          {/* Manual Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || !isConnected}
+            className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-medium transition-colors ${
+              isRefreshing || !isConnected
+                ? 'opacity-50 cursor-not-allowed bg-gray-600'
+                : 'bg-white/20 hover:bg-white/30 text-white'
+            }`}
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <span>🔄</span>
+                Refresh
+              </>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Chat Messages */}
-      <div className="space-y-4">
-        <div className={`bg-gradient-to-br ${config.bgGradient} rounded-2xl p-4 border border-white/20`}>
-          <div
-            ref={chatContainerRef}
-            className="bg-white/10 backdrop-blur-lg rounded-xl p-4 h-80 sm:h-96 overflow-y-auto shadow-inner border border-white/20 scroll-smooth"
-          >
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="text-4xl mb-3">{icon}</div>
-                  <p className="text-purple-200 text-lg">No messages yet</p>
-                  <p className="text-purple-300 text-sm">Start chatting with your opponent!</p>
-                </div>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {messages.map((message, i) => (
-                  <li key={message.id || i} className={`mb-3 p-4 bg-gradient-to-r ${config.gradient} rounded-2xl ${config.border} shadow-sm`}>
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-8 h-8 bg-gradient-to-r ${config.avatar} rounded-full flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-white font-semibold text-sm">👤</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">{message.userName}</span>
-                          <span className="text-purple-400 text-xs">•</span>
-                          <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="text-white text-lg leading-relaxed">{message.message}</p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+      <div 
+        ref={chatContainerRef}
+        className="h-64 overflow-y-auto p-4 space-y-3"
+      >
+        {messages.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-2">🎮</div>
+            <p className="text-purple-200 text-sm">No messages yet. Start chatting with your opponent!</p>
           </div>
-        </div>
-      </div>
-
-      {/* Send Message */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-white text-center">💭 Send Message</h3>
-        <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
-          <div className="flex space-x-3">
-            <input
-              type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className={`flex-1 px-4 py-3 border-2 border-white/20 rounded-xl focus:outline-none focus:border-green-600 bg-white/10 backdrop-blur-sm text-white placeholder-pink-200 text-lg transition-all duration-200`}
-              placeholder="Type your message..."
-              disabled={!isConnected}
-            />
-            <button
-              type="submit"
-              disabled={!isConnected || !text.trim()}
-              className={`bg-gradient-to-r ${config.button} text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg ${config.shadow} disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2`}
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex flex-col space-y-1 ${
+                message.userName === userName ? 'items-end' : 'items-start'
+              }`}
             >
-              <span>📤</span>
-              <span>Send</span>
-            </button>
-          </div>
-        </form>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-purple-300 font-medium">
+                  {message.userName}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <div
+                className={`max-w-xs sm:max-w-md px-3 py-2 rounded-lg text-sm ${
+                  message.userName === userName
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/10 text-white'
+                }`}
+              >
+                {message.message}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Connection Status */}
-      <div className="text-center">
-        <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${isConnected
+      <div className="px-4 py-2 border-t border-white/10">
+        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+          isConnected
             ? 'bg-green-500/20 text-green-300 border border-green-400/30'
             : 'bg-red-500/20 text-red-300 border border-red-400/30'
-          }`}>
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-          <span className="font-medium">
-            {isConnected ? 'Connected to game chat' : 'Disconnected from game chat'}
-          </span>
+        }`}>
+          <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+          {isConnected ? 'Game Chat Connected' : 'Game Chat Disconnected'}
         </div>
       </div>
+
+      {/* Message Input */}
+      <form onSubmit={handleSubmit} className="p-4 border-t border-white/10">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={isConnected ? "Type your message..." : "Chat unavailable"}
+            disabled={!isConnected}
+            className={`flex-1 px-3 py-2 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 ${themeClasses.input} ${
+              !isConnected ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          />
+          <button
+            type="submit"
+            disabled={!isConnected || !text.trim()}
+            className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${themeClasses.button} ${
+              !isConnected || !text.trim() ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            Send
+          </button>
+        </div>
+      </form>
     </div>
   );
 } 

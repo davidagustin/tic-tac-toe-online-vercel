@@ -1,25 +1,25 @@
 'use client';
 
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTrpcGame } from '@/hooks/useTrpcGame';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Message {
-  id: number;
-  text: string;
-  user_name: string;
+  id: string;
+  username: string;
+  message: string;
   timestamp: string;
 }
 
 interface ChatRoomProps {
   userName: string;
-  title: string;
-  description: string;
-  theme: 'blue' | 'green';
-  icon: string;
+  title?: string;
+  description?: string;
+  theme?: 'default' | 'game' | 'lobby';
+  icon?: string;
 }
 
-export default function ChatRoom({ userName, title, description, theme, icon }: ChatRoomProps) {
-  const { isConnected, chatMessages } = useTrpcGame();
+export default function ChatRoom({ userName, title = 'Global Chat', description = 'Chat with other players', theme = 'default', icon = '💬' }: ChatRoomProps) {
+  const { isConnected, chatMessages, refreshChatMessages, isRefreshing } = useTrpcGame();
   const [text, setText] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -42,193 +42,196 @@ export default function ChatRoom({ userName, title, description, theme, icon }: 
     scrollToBottom();
   }, [displayMessages, scrollToBottom]);
 
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Manual chat refresh triggered');
+    await refreshChatMessages();
+  }, [refreshChatMessages]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || !isChatAvailable) return;
 
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: text.trim(),
+          userName: userName,
+        }),
+      });
 
-      // Basic client-side validation
-      if (text.length > 500) {
-        alert('Message too long. Maximum 500 characters allowed.');
-        return;
+      if (!response.ok) {
+        throw new Error('Failed to send message');
       }
 
-      // Check for potentially malicious content
-      const suspiciousPatterns = [
-        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-        /javascript:/gi,
-        /on\w+\s*=/gi,
-        /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi
-      ];
+      // Add message to local state immediately for better UX
+      const newMessage: Message = {
+        id: `local_${Date.now()}`,
+        username: userName,
+        message: text.trim(),
+        timestamp: new Date().toISOString(),
+      };
 
-      for (const pattern of suspiciousPatterns) {
-        if (pattern.test(text)) {
-          alert('Message contains invalid content.');
-          return;
-        }
-      }
-
-      if (isConnected) {
-        // Send message via API for real-time chat
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text, userName }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send message');
-        }
-      } else {
-        // Add message locally when not connected
-        const newMessage: Message = {
-          id: Date.now(),
-          text: text.trim(),
-          user_name: userName,
-          timestamp: new Date().toISOString(),
-        };
+      if (!isConnected) {
         setLocalMessages(prev => [...prev, newMessage]);
       }
 
       setText('');
-    } catch (error: unknown) {
-      console.error('Error posting message:', error);
+    } catch (error) {
+      console.error('Error sending message:', error);
       alert('Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Theme configuration
-  const config = {
-    blue: {
-      bgGradient: 'from-blue-600/20 to-cyan-600/20',
-      gradient: 'from-blue-500/20 to-cyan-500/20',
-      border: 'border-blue-400/30',
-      avatar: 'from-blue-500 to-cyan-500',
-      button: 'from-blue-600 to-cyan-600',
-      shadow: 'shadow-blue-500/25',
-      loading: 'border-blue-400'
-    },
-    green: {
-      bgGradient: 'from-green-600/20 to-emerald-600/20',
-      gradient: 'from-green-500/20 to-emerald-500/20',
-      border: 'border-green-400/30',
-      avatar: 'from-green-500 to-emerald-500',
-      button: 'from-green-600 to-emerald-600',
-      shadow: 'shadow-green-500/25',
-      loading: 'border-green-400'
+  const getThemeClasses = () => {
+    switch (theme) {
+      case 'game':
+        return {
+          container: 'bg-purple-900/50 border-purple-500/30',
+          header: 'bg-purple-800/50',
+          input: 'bg-purple-800/30 border-purple-500/50 focus:border-purple-400',
+          button: 'bg-purple-600 hover:bg-purple-700'
+        };
+      case 'lobby':
+        return {
+          container: 'bg-blue-900/50 border-blue-500/30',
+          header: 'bg-blue-800/50',
+          input: 'bg-blue-800/30 border-blue-500/50 focus:border-blue-400',
+          button: 'bg-blue-600 hover:bg-blue-700'
+        };
+      default:
+        return {
+          container: 'bg-white/10 border-white/20',
+          header: 'bg-white/5',
+          input: 'bg-white/10 border-white/20 focus:border-white/40',
+          button: 'bg-purple-600 hover:bg-purple-700'
+        };
     }
-  }[theme];
+  };
+
+  const themeClasses = getThemeClasses();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">{icon} {title}</h2>
-        <p className="text-purple-200">{description}</p>
+    <div className={`card ${themeClasses.container} border backdrop-blur-lg`}>
+      {/* Header with Refresh Button */}
+      <div className={`${themeClasses.header} rounded-t-lg p-4 border-b border-white/10`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl">{icon}</span>
+            <div>
+              <h3 className="text-lg font-semibold text-white">{title}</h3>
+              <p className="text-sm text-purple-200">{description}</p>
+            </div>
+          </div>
+          
+          {/* Manual Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || !isChatAvailable}
+            className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-medium transition-colors ${
+              isRefreshing || !isChatAvailable
+                ? 'opacity-50 cursor-not-allowed bg-gray-600'
+                : 'bg-white/20 hover:bg-white/30 text-white'
+            }`}
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <span>🔄</span>
+                Refresh
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Chat Messages */}
-      <div className="space-y-4">
-        <div className={`bg-gradient-to-br ${config.bgGradient} rounded-2xl p-4 border border-white/20`}>
-          <div
-            ref={chatContainerRef}
-            className="bg-white/10 backdrop-blur-lg rounded-xl p-4 h-80 sm:h-96 overflow-y-auto shadow-inner border border-white/20 scroll-smooth"
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${config.loading} mx-auto mb-2`}></div>
-                  <p className="text-purple-200">Loading messages...</p>
-                </div>
-              </div>
-            ) : displayMessages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="text-4xl mb-3">{icon}</div>
-                  <p className="text-purple-200 text-lg">No messages yet</p>
-                  <p className="text-purple-300 text-sm">Start the conversation!</p>
-                </div>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {displayMessages.map((message, i) => (
-                  <li key={message.id || i} className={`mb-3 p-4 bg-gradient-to-r ${config.gradient} rounded-2xl ${config.border} shadow-sm`}>
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-8 h-8 bg-gradient-to-r ${config.avatar} rounded-full flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-white font-semibold text-sm">👤</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-purple-300 font-semibold text-sm">
-                            {('userName' in message ? message.userName : message.user_name) as string}
-                          </span>
-                          <span className="text-purple-400 text-xs">•</span>
-                          <span className="text-purple-400 text-xs">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date(message.id).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="text-white text-lg leading-relaxed">{('text' in message ? message.text : message.message) as string}</p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+      <div 
+        ref={chatContainerRef}
+        className="h-64 overflow-y-auto p-4 space-y-3"
+      >
+        {displayMessages.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-2">💬</div>
+            <p className="text-purple-200 text-sm">No messages yet. Start the conversation!</p>
           </div>
-        </div>
-      </div>
-
-      {/* Send Message */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-white text-center">💭 Send Message</h3>
-        <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
-          <div className="flex space-x-3">
-            <input
-              type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className={`flex-1 px-4 py-3 border-2 border-white/20 rounded-xl focus:outline-none focus:border-green-600 bg-white/10 backdrop-blur-sm text-white placeholder-pink-200 text-lg transition-all duration-200`}
-              placeholder="Type your message..."
-              disabled={!isChatAvailable}
-            />
-            <button
-              type="submit"
-              disabled={!isChatAvailable || !text.trim() || isLoading}
-              className={`bg-gradient-to-r ${config.button} text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg ${config.shadow} disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2`}
+        ) : (
+          displayMessages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex flex-col space-y-1 ${
+                message.username === userName ? 'items-end' : 'items-start'
+              }`}
             >
-              <span>📤</span>
-              <span>{isLoading ? 'Sending...' : 'Send'}</span>
-            </button>
-          </div>
-        </form>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-purple-300 font-medium">
+                  {message.username}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <div
+                className={`max-w-xs sm:max-w-md px-3 py-2 rounded-lg text-sm ${
+                  message.username === userName
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/10 text-white'
+                }`}
+              >
+                {message.message}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Connection Status */}
-      <div className="text-center">
-        <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${isChatAvailable
-            ? isConnected
-              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
-              : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+      <div className="px-4 py-2 border-t border-white/10">
+        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+          isChatAvailable
+            ? 'bg-green-500/20 text-green-300 border border-green-400/30'
             : 'bg-red-500/20 text-red-300 border border-red-400/30'
-          }`}>
-          <div className={`w-2 h-2 rounded-full ${isChatAvailable
-              ? isConnected
-                ? 'bg-green-400 animate-pulse'
-                : 'bg-yellow-400'
-              : 'bg-red-400'
-            }`}></div>
-          <span className="font-medium">
-            {isConnected
-              ? 'Connected to chat'
-              : 'Disconnected from chat'
-            }
-          </span>
+        }`}>
+          <div className={`w-2 h-2 rounded-full mr-2 ${isChatAvailable ? 'bg-green-400' : 'bg-red-400'}`}></div>
+          {isChatAvailable ? 'Chat Connected' : 'Chat Disconnected'}
         </div>
       </div>
+
+      {/* Message Input */}
+      <form onSubmit={handleSubmit} className="p-4 border-t border-white/10">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={isChatAvailable ? "Type your message..." : "Chat unavailable"}
+            disabled={!isChatAvailable || isLoading}
+            className={`flex-1 px-3 py-2 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 ${themeClasses.input} ${
+              !isChatAvailable ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          />
+          <button
+            type="submit"
+            disabled={!isChatAvailable || isLoading || !text.trim()}
+            className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${themeClasses.button} ${
+              !isChatAvailable || isLoading || !text.trim() ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isLoading ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 } 

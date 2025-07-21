@@ -1,7 +1,7 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import { useTrpcGame } from '@/hooks/useTrpcGame';
-import React, { useCallback, useEffect, useState } from 'react';
 
 interface Game {
   id: string;
@@ -22,37 +22,22 @@ interface GameManagerProps {
 
 export default function GameManager({ userName, onJoinGame }: GameManagerProps) {
   console.log('🎮 GameManager: Component mounted with onJoinGame callback:', !!onJoinGame);
-  const { isConnected, games: pusherGames, subscribeToLobby } = useTrpcGame();
+  const { 
+    isConnected, 
+    games: pusherGames, 
+    subscribeToLobby, 
+    refreshGames, 
+    isRefreshing 
+  } = useTrpcGame();
 
   const [showCreateForm, setShowCreateForm] = useState(true); // Show create form by default
   const [newGameName, setNewGameName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'playing'>('all');
   const [fallbackGames, setFallbackGames] = useState<Game[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Use games from Pusher hook, fallback to local state if Pusher fails
   const games = pusherGames && pusherGames.length > 0 ? pusherGames : fallbackGames;
-
-  // Manual refresh function
-  const refreshGames = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      console.log('🔄 Manually refreshing games from API...');
-      const response = await fetch('/api/game/list');
-      if (response.ok) {
-        const gamesData = await response.json();
-        console.log(`🔄 Refresh - Found ${gamesData.length} games:`, gamesData);
-        setFallbackGames(gamesData);
-      } else {
-        console.log(`🔄 Refresh - API returned ${response.status}`);
-      }
-    } catch (error) {
-      console.error('🔄 Refresh error:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
 
   // Subscribe to lobby when component mounts
   useEffect(() => {
@@ -62,94 +47,10 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     }
   }, [isConnected, subscribeToLobby]);
 
-  // Initial load of games from API and cleanup
+  // Initial load of games from API
   useEffect(() => {
     refreshGames();
-    
-    // TEMPORARILY DISABLED: Clean up abandoned games on component mount
-    // This was causing games to be cleared immediately after creation
-    /*
-    const cleanupAbandonedGames = async () => {
-      try {
-        console.log('🧹 Auto-cleanup on mount...');
-        const currentGames = games || [];
-        for (const game of currentGames) {
-          if (game.players.length === 0 || game.status === 'finished') {
-            console.log('🧹 Auto-cleaning up game:', game.id);
-            await fetch('/api/game/leave', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ gameId: game.id, userName: 'cleanup' }),
-            });
-          }
-        }
-        // Refresh games after cleanup
-        setTimeout(() => refreshGames(), 1000);
-      } catch (error) {
-        console.error('🧹 Auto-cleanup error:', error);
-      }
-    };
-    
-    cleanupAbandonedGames();
-    */
   }, [refreshGames]);
-
-  // Reduced polling for games to prevent overload
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-    // let cleanupInterval: NodeJS.Timeout; // TEMPORARILY DISABLED
-
-    if (userName && showCreateForm && !isConnected) {
-      console.log('Starting reduced-frequency game polling...');
-
-      // Much less frequent polling - every 2 minutes
-      pollInterval = setInterval(async () => {
-        try {
-          console.log('Polling for game updates...');
-          const response = await fetch('/api/game/list');
-          if (response.ok) {
-            const fetchedGames = await response.json();
-            // Only update if games actually changed
-            if (JSON.stringify(fetchedGames) !== JSON.stringify(games)) {
-              console.log('Games updated from polling:', fetchedGames);
-              // Update via a custom event to avoid direct state manipulation
-              window.dispatchEvent(new CustomEvent('games-updated', {
-                detail: fetchedGames
-              }));
-            }
-          }
-        } catch (error) {
-          console.error('Error polling for games:', error);
-        }
-      }, 120000); // 2 minutes
-
-      // TEMPORARILY DISABLED: Periodic cleanup of abandoned games - every 5 minutes
-      // This was causing games to be cleared immediately after creation
-      /*
-      cleanupInterval = setInterval(async () => {
-        try {
-          console.log('Running periodic game cleanup...');
-          const response = await fetch('/api/cleanup-games', { method: 'POST' });
-          if (response.ok) {
-            const result = await response.json();
-            console.log('Cleanup result:', result);
-          }
-        } catch (error) {
-          console.error('Error during cleanup:', error);
-        }
-      }, 300000); // 5 minutes
-      */
-    }
-
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-      // if (cleanupInterval) { // TEMPORARILY DISABLED
-      //   clearInterval(cleanupInterval);
-      // }
-    };
-  }, [userName, showCreateForm, isConnected, games]); // Added 'games' back to dependency array
 
   // Listen for custom game update events
   useEffect(() => {
@@ -219,6 +120,9 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
       setNewGameName('');
       setShowCreateForm(false);
 
+      // Refresh games list after creating
+      await refreshGames();
+
       // Optionally, automatically join the created game
       if (onJoinGame) {
         console.log('🎮 GameManager: Calling onJoinGame callback with gameId:', data.game.id);
@@ -237,65 +141,47 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     } finally {
       setIsLoading(false);
     }
-  }, [newGameName, userName, onJoinGame]);
+  }, [newGameName, userName, onJoinGame, refreshGames]);
 
   const handleJoinGame = useCallback(async (gameId: string) => {
     try {
       // Basic validation
-      if (!gameId || typeof gameId !== 'string') {
-        alert('Invalid game ID.');
-        return;
+      if (!gameId || !userName) {
+        throw new Error('Missing game ID or username');
       }
 
-      // Check if user is already in the game
-      const game = games.find(g => g.id === gameId);
-      if (game && game.players.includes(userName)) {
-        alert('You are already in this game.');
-        return;
-      }
+      console.log('🎮 GameManager: handleJoinGame called with gameId:', gameId);
+      console.log('🎮 GameManager: onJoinGame callback exists:', !!onJoinGame);
 
-      console.log('Joining game:', gameId, 'as user:', userName);
-
-      const response = await fetch('/api/game/join', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          gameId: gameId,
-          userName: userName,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to join game');
-      }
-
-      console.log('Joined game successfully:', data.game);
-
-      // Navigate to the game
       if (onJoinGame) {
-        onJoinGame(gameId);
+        console.log('🎮 GameManager: Calling onJoinGame callback...');
+        try {
+          onJoinGame(gameId);
+          console.log('🎮 GameManager: onJoinGame callback completed');
+        } catch (error) {
+          console.error('🎮 GameManager: Error in onJoinGame callback:', error);
+          throw error;
+        }
+      } else {
+        console.log('🎮 GameManager: No onJoinGame callback provided');
+        throw new Error('No join game callback provided');
       }
     } catch (error: unknown) {
       console.error('Error joining game:', error);
       alert(error instanceof Error ? error.message : 'Failed to join game. Please try again.');
     }
-  }, [userName, onJoinGame, games]);
+  }, [userName, onJoinGame]);
 
   const handleShowCreateForm = () => {
-    console.log('🎮 GameManager: Create Game button clicked');
     setShowCreateForm(true);
   };
 
   const getStatusColor = (status: Game['status']) => {
     switch (status) {
-      case 'waiting': return 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-300 border-yellow-400/30';
-      case 'playing': return 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 border-green-400/30';
-      case 'finished': return 'bg-gradient-to-r from-gray-500/20 to-slate-500/20 text-gray-300 border-gray-400/30';
-      default: return 'bg-gradient-to-r from-gray-500/20 to-slate-500/20 text-gray-300 border-gray-400/30';
+      case 'waiting': return 'text-yellow-400';
+      case 'playing': return 'text-green-400';
+      case 'finished': return 'text-gray-400';
+      default: return 'text-gray-400';
     }
   };
 
@@ -308,28 +194,49 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
     }
   };
 
-  const filteredGames = games.filter(game => filter === 'all' || game.status === filter);
-
-
+  const filteredGames = games.filter(game => {
+    if (filter === 'all') return true;
+    return game.status === filter;
+  });
 
   return (
-    <div data-testid="lobby-root" className="space-y-4 sm:space-y-6">
-      {/* Create Game Section */}
-      <div className="card">
-        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 sm:mb-6">
-          <h2 className="mobile-heading font-bold text-white">Create New Game</h2>
-          <button
-            onClick={handleShowCreateForm}
-            className="btn-primary w-full sm:w-auto touch-target"
-          >
-            {showCreateForm ? 'Cancel' : 'Create Game'}
-          </button>
+    <div className="max-w-6xl mx-auto">
+      {/* Header with Refresh Button */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Game Lobby</h2>
+          <p className="text-purple-200">Find a game to join or create your own!</p>
         </div>
+        
+        {/* Manual Refresh Button */}
+        <button
+          onClick={refreshGames}
+          disabled={isRefreshing}
+          className={`btn-secondary flex items-center gap-2 px-4 py-2 text-sm ${
+            isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'
+          }`}
+        >
+          {isRefreshing ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Refreshing...
+            </>
+          ) : (
+            <>
+              <span>🔄</span>
+              Refresh Games
+            </>
+          )}
+        </button>
+      </div>
 
-        {showCreateForm && (
+      {/* Create Game Section */}
+      {showCreateForm && (
+        <div className="card mb-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Create New Game</h3>
           <form onSubmit={handleCreateGame} className="space-y-4">
             <div>
-              <label htmlFor="gameName" className="block mobile-text font-medium text-purple-200 mb-2">
+              <label htmlFor="gameName" className="block text-sm font-medium text-purple-200 mb-2">
                 Game Name
               </label>
               <input
@@ -337,134 +244,144 @@ export default function GameManager({ userName, onJoinGame }: GameManagerProps) 
                 id="gameName"
                 value={newGameName}
                 onChange={(e) => setNewGameName(e.target.value)}
-                placeholder="Enter game name..."
-                className="input-primary"
+                placeholder="Enter a name for your game..."
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 maxLength={100}
-                disabled={isLoading}
+                required
               />
             </div>
-            <button
-              type="submit"
-              data-testid="create-game-submit"
-              disabled={isLoading || !newGameName.trim()}
-              className="btn-primary w-full"
-            >
-              {isLoading ? 'Creating...' : 'Create Game'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={isLoading || !newGameName.trim()}
+                className="btn-primary flex-1"
+              >
+                {isLoading ? 'Creating...' : 'Create Game'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
           </form>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Games List Section */}
       <div className="card">
-        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 sm:mb-6">
-          <h2 className="mobile-heading font-bold text-white">Available Games</h2>
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'waiting', 'playing'] as const).map((filterOption) => (
-              <button
-                key={filterOption}
-                onClick={() => setFilter(filterOption)}
-                className={`px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 touch-target ${filter === filterOption
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-400 text-white'
-                  : 'bg-white/10 text-purple-200 hover:bg-white/20'
-                  }`}
-              >
-                <span className="hidden sm:inline">{filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}</span>
-                <span className="sm:hidden">
-                  {filterOption === 'all' ? 'All' : filterOption === 'waiting' ? 'Wait' : 'Play'}
-                </span>
-              </button>
-            ))}
-            <button
-              onClick={refreshGames}
-              disabled={isRefreshing}
-              className="px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 bg-white/10 text-purple-200 hover:bg-white/20 touch-target"
-            >
-              {isRefreshing ? '🔄' : '🔄'}
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  console.log('🧹 Manual cleanup triggered...');
-                  // Try the API first
-                  const response = await fetch('/api/cleanup-games', { method: 'POST' });
-                  if (response.ok) {
-                    const result = await response.json();
-                    console.log('🧹 Cleanup result:', result);
-                  } else {
-                    console.log('🧹 API cleanup failed, trying direct cleanup...');
-                    // Fallback: direct cleanup via leave game API
-                    const currentGames = games || [];
-                    for (const game of currentGames) {
-                      if (game.players.length === 0 || game.status === 'finished') {
-                        console.log('🧹 Cleaning up game:', game.id);
-                        await fetch('/api/game/leave', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ gameId: game.id, userName: 'cleanup' }),
-                        });
-                      }
-                    }
-                  }
-                  refreshGames(); // Refresh the games list
-                } catch (error) {
-                  console.error('🧹 Cleanup error:', error);
-                }
-              }}
-              className="px-3 py-2 rounded-lg mobile-text font-medium transition-all duration-300 bg-red-500/20 text-red-300 hover:bg-red-500/30 touch-target"
-            >
-              🧹
-            </button>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-white mb-2">Available Games</h3>
+            <p className="text-purple-200 text-sm">
+              {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} available
+            </p>
           </div>
+          
+          {!showCreateForm && (
+            <button
+              onClick={handleShowCreateForm}
+              className="btn-primary text-sm px-4 py-2"
+            >
+              Create Game
+            </button>
+          )}
         </div>
 
-        {filteredGames.length === 0 && (
-          <div className="text-center py-8">
-            <div className="text-4xl mb-4">🎮</div>
-            <p className="text-purple-200 mobile-text">No games available. Create one to get started!</p>
-          </div>
-        )}
+        {/* Filter Tabs */}
+        <div className="flex space-x-1 mb-6 bg-white/10 rounded-lg p-1">
+          {(['all', 'waiting', 'playing'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                filter === status
+                  ? 'bg-purple-600 text-white'
+                  : 'text-purple-200 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {status === 'all' ? 'All Games' : status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
 
-        {filteredGames.length > 0 && (
-          <div className="space-y-4">
+        {/* Games Grid */}
+        {filteredGames.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🎮</div>
+            <h4 className="text-xl font-semibold text-white mb-2">No games available</h4>
+            <p className="text-purple-200 mb-4">
+              {filter === 'all' 
+                ? "No games have been created yet. Be the first to create one!"
+                : `No ${filter} games available. Try a different filter or create a new game.`
+              }
+            </p>
+            {filter !== 'all' && (
+              <button
+                onClick={() => setFilter('all')}
+                className="btn-secondary text-sm px-4 py-2"
+              >
+                Show All Games
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredGames.map((game) => (
               <div
                 key={game.id}
-                className="bg-white/5 backdrop-blur-lg rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-lg p-4 hover:bg-white/15 transition-colors"
               >
-                <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-white truncate">{game.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)} w-fit`}>
-                        {getStatusIcon(game.status)} {game.status}
-                      </span>
-                    </div>
-                    <div className="mobile-text text-purple-200 space-y-1">
-                      <p>Created by: <span className="text-yellow-300">{game.createdBy}</span></p>
-                      <p>Players: {game.players.length}/2</p>
-                      <p className="hidden sm:block">Created: {new Date(game.createdAt).toLocaleString()}</p>
-                      <p className="sm:hidden">Created: {new Date(game.createdAt).toLocaleDateString()}</p>
-                    </div>
+                <div className="flex justify-between items-start mb-3">
+                  <h4 className="text-lg font-semibold text-white truncate flex-1">
+                    {game.name}
+                  </h4>
+                  <span className={`text-sm font-medium ${getStatusColor(game.status)}`}>
+                    {getStatusIcon(game.status)} {game.status}
+                  </span>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-purple-200">Players:</span>
+                    <span className="text-white">{game.players.length}/2</span>
                   </div>
-                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
-                    {game.status === 'waiting' && !game.players.includes(userName) && (
-                      <button
-                        onClick={() => handleJoinGame(game.id)}
-                        className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-medium hover:from-green-700 hover:to-emerald-600 transition-all duration-300 touch-target w-full sm:w-auto"
-                      >
-                        Join Game
-                      </button>
-                    )}
-                    {game.players.includes(userName) && (
-                      <button
-                        onClick={() => onJoinGame(game.id)}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-medium hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 touch-target w-full sm:w-auto"
-                      >
-                        Enter Game
-                      </button>
-                    )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-purple-200">Created by:</span>
+                    <span className="text-white truncate ml-2">{game.createdBy}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-purple-200">Created:</span>
+                    <span className="text-white">
+                      {new Date(game.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {game.status === 'waiting' && game.players.length < 2 && (
+                    <button
+                      onClick={() => handleJoinGame(game.id)}
+                      className="btn-primary flex-1 text-sm py-2"
+                    >
+                      Join Game
+                    </button>
+                  )}
+                  {game.status === 'playing' && (
+                    <button
+                      onClick={() => handleJoinGame(game.id)}
+                      className="btn-secondary flex-1 text-sm py-2"
+                    >
+                      Watch Game
+                    </button>
+                  )}
+                  {game.status === 'finished' && (
+                    <span className="text-gray-400 text-sm py-2 px-3 bg-gray-800/50 rounded flex-1 text-center">
+                      Game Finished
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api' : '/api';
 
 interface Game {
   id: string;
@@ -37,19 +39,18 @@ interface GameState {
   chatMessages: ChatMessage[];
   playerStats: UserStats | null;
   error: string | null;
+  isRefreshing: boolean;
 }
 
-const API_BASE = '/api';
-
-// Rate limiting to prevent excessive API calls
+// Simple rate limiting to prevent excessive API calls
 const rateLimitMap = new Map<string, number>();
-const RATE_LIMIT_DELAY = 200; // Reduced to 200ms between calls for the same endpoint
+const RATE_LIMIT_WINDOW = 1000; // 1 second
 
 function isRateLimited(endpoint: string): boolean {
-  const lastCall = rateLimitMap.get(endpoint);
   const now = Date.now();
+  const lastCall = rateLimitMap.get(endpoint);
   
-  if (lastCall && (now - lastCall) < RATE_LIMIT_DELAY) {
+  if (lastCall && now - lastCall < RATE_LIMIT_WINDOW) {
     return true;
   }
   
@@ -59,139 +60,167 @@ function isRateLimited(endpoint: string): boolean {
 
 export function useTrpcGame() {
   const [state, setState] = useState<GameState>({
-    isConnected: true, // Always connected since we're using HTTP polling
+    isConnected: true, // Always connected since we're using manual refresh
     currentGame: null,
     games: [],
     chatMessages: [],
     playerStats: null,
-    error: null
+    error: null,
+    isRefreshing: false
   });
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isPollingRef = useRef(false);
-
-  const startPolling = useCallback((gameId?: string) => {
-    if (isPollingRef.current) return;
-    isPollingRef.current = true;
-    
-    // Set connection state to true when polling starts
-    setState(prev => ({ ...prev, isConnected: true }));
-
-    // Initial fetch for current game if we have a gameId but no currentGame
-    const initialFetch = async () => {
-      try {
-        // If we have a currentGame, fetch it immediately
-        if (state.currentGame && !isRateLimited(`game-${state.currentGame.id}`)) {
-          const gameResponse = await fetch(`${API_BASE}/games/${state.currentGame.id}`);
-          if (gameResponse.ok) {
-            const game = await gameResponse.json();
-            setState(prev => ({ ...prev, currentGame: game }));
-          }
-        }
-        // If we have a gameId but no currentGame, fetch it
-        else if (gameId && !state.currentGame && !isRateLimited(`game-${gameId}`)) {
-          const gameResponse = await fetch(`${API_BASE}/games/${gameId}`);
-          if (gameResponse.ok) {
-            const game = await gameResponse.json();
-            setState(prev => ({ ...prev, currentGame: game }));
-          }
-        }
-      } catch (error) {
-        console.error('Initial fetch error:', error);
-      }
-    };
-
-    // Do initial fetch
-    initialFetch();
-
-    intervalRef.current = setInterval(async () => {
-      try {
-        // Poll for games - REDUCED FREQUENCY with rate limiting
-        // Temporarily disable rate limiting for games list to fix lobby issue
-        // if (!isRateLimited('game-list')) {
-          const gamesResponse = await fetch(`${API_BASE}/game/list`);
-          if (gamesResponse.ok) {
-            const games = await gamesResponse.json();
-            setState(prev => ({ ...prev, games }));
-          }
-        // }
-
-        // Poll for current game if we have one - REDUCED FREQUENCY with rate limiting
-        if (state.currentGame && !isRateLimited(`game-${state.currentGame.id}`)) {
-          const gameResponse = await fetch(`${API_BASE}/games/${state.currentGame.id}`);
-          if (gameResponse.ok) {
-            const game = await gameResponse.json();
-            setState(prev => ({ ...prev, currentGame: game }));
-          }
-
-          // Poll for chat messages - REDUCED FREQUENCY with rate limiting
-          if (!isRateLimited(`chat-${state.currentGame.id}`)) {
-            const chatResponse = await fetch(`${API_BASE}/chat?gameId=${state.currentGame.id}`);
-            if (chatResponse.ok) {
-              const chatMessages = await chatResponse.json();
-              setState(prev => ({ ...prev, chatMessages }));
-            }
-          }
-        }
-        // If we have a gameId but no currentGame, try to fetch it
-        else if (gameId && !state.currentGame && !isRateLimited(`game-${gameId}`)) {
-          const gameResponse = await fetch(`${API_BASE}/games/${gameId}`);
-          if (gameResponse.ok) {
-            const game = await gameResponse.json();
-            setState(prev => ({ ...prev, currentGame: game }));
-          }
-        }
-      } catch (error) {
-        console.error('Polling error:', error);
-        setState(prev => ({ ...prev, error: 'Connection error', isConnected: false }));
-      }
-    }, 1000); // Reduced to 1 second for faster updates during testing
-  }, [state.currentGame?.id]); // Removed gameId from dependencies since it's a parameter
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    isPollingRef.current = false;
-  }, []);
-
-  const subscribeToLobby = useCallback((gameId?: string) => {
-    startPolling(gameId);
-  }, [startPolling]);
-
-  const subscribeToUser = useCallback(async (username: string): Promise<void> => {
-    console.log('🔍 subscribeToUser called for:', username, 'at:', new Date().toISOString());
-    
-    // Apply rate limiting to stats API calls
-    const endpoint = `stats-${username}`;
-    if (isRateLimited(endpoint)) {
-      console.log('🚫 Rate limited: stats API call blocked for user:', username);
+  // Manual refresh functions
+  const refreshGames = useCallback(async () => {
+    if (isRateLimited('game-list')) {
+      console.log('🚫 Rate limited: games refresh blocked');
       return;
     }
+
+    setState(prev => ({ ...prev, isRefreshing: true, error: null }));
     
-    // Add debouncing to prevent rapid stats API calls
-    setTimeout(async () => {
-      try {
-        const response = await fetch(`${API_BASE}/stats/${username}`);
-        if (response.ok) {
-          const stats = await response.json();
-          setState(prev => ({ ...prev, playerStats: stats }));
-          console.log('✅ Stats fetched successfully for:', username);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user stats:', error);
+    try {
+      console.log('🔄 Manually refreshing games...');
+      const response = await fetch(`${API_BASE}/game/list`);
+      if (response.ok) {
+        const games = await response.json();
+        setState(prev => ({ ...prev, games, isRefreshing: false }));
+        console.log(`✅ Refreshed ${games.length} games`);
+      } else {
+        throw new Error(`Failed to fetch games: ${response.status}`);
       }
-    }, 2000); // 2 second debounce
+    } catch (error) {
+      console.error('❌ Error refreshing games:', error);
+      setState(prev => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to refresh games',
+        isRefreshing: false 
+      }));
+    }
   }, []);
 
+  const refreshCurrentGame = useCallback(async (gameId?: string) => {
+    const targetGameId = gameId || state.currentGame?.id;
+    if (!targetGameId) return;
+
+    if (isRateLimited(`game-${targetGameId}`)) {
+      console.log('🚫 Rate limited: current game refresh blocked');
+      return;
+    }
+
+    setState(prev => ({ ...prev, isRefreshing: true, error: null }));
+    
+    try {
+      console.log('🔄 Manually refreshing current game...');
+      const response = await fetch(`${API_BASE}/games/${targetGameId}`);
+      if (response.ok) {
+        const game = await response.json();
+        setState(prev => ({ ...prev, currentGame: game, isRefreshing: false }));
+        console.log('✅ Refreshed current game');
+      } else {
+        throw new Error(`Failed to fetch game: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing current game:', error);
+      setState(prev => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to refresh game',
+        isRefreshing: false 
+      }));
+    }
+  }, [state.currentGame?.id]);
+
+  const refreshChatMessages = useCallback(async (gameId?: string) => {
+    const targetGameId = gameId || state.currentGame?.id;
+    if (!targetGameId) return;
+
+    if (isRateLimited(`chat-${targetGameId}`)) {
+      console.log('🚫 Rate limited: chat refresh blocked');
+      return;
+    }
+
+    try {
+      console.log('🔄 Manually refreshing chat messages...');
+      const response = await fetch(`${API_BASE}/chat?gameId=${targetGameId}`);
+      if (response.ok) {
+        const chatMessages = await response.json();
+        setState(prev => ({ ...prev, chatMessages }));
+        console.log(`✅ Refreshed ${chatMessages.length} chat messages`);
+      } else {
+        throw new Error(`Failed to fetch chat: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing chat messages:', error);
+      setState(prev => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to refresh chat'
+      }));
+    }
+  }, [state.currentGame?.id]);
+
+  const refreshUserStats = useCallback(async (username: string) => {
+    if (isRateLimited(`stats-${username}`)) {
+      console.log('🚫 Rate limited: stats refresh blocked');
+      return;
+    }
+
+    try {
+      console.log('🔄 Manually refreshing user stats...');
+      const response = await fetch(`${API_BASE}/stats/${username}`);
+      if (response.ok) {
+        const stats = await response.json();
+        setState(prev => ({ ...prev, playerStats: stats }));
+        console.log('✅ Refreshed user stats');
+      } else {
+        throw new Error(`Failed to fetch stats: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing user stats:', error);
+      setState(prev => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to refresh stats'
+      }));
+    }
+  }, []);
+
+  // Initial data fetch when component mounts
+  const initializeData = useCallback(async (gameId?: string) => {
+    console.log('🚀 Initializing data...');
+    setState(prev => ({ ...prev, isConnected: true, error: null }));
+    
+    // Fetch initial games list
+    await refreshGames();
+    
+    // Fetch initial game data if gameId provided
+    if (gameId) {
+      await refreshCurrentGame(gameId);
+      await refreshChatMessages(gameId);
+    }
+  }, [refreshGames, refreshCurrentGame, refreshChatMessages]);
+
+  // Legacy functions for backward compatibility
+  const subscribeToLobby = useCallback((gameId?: string) => {
+    console.log('📡 subscribeToLobby called - using manual refresh instead of polling');
+    initializeData(gameId);
+  }, [initializeData]);
+
+  const subscribeToUser = useCallback(async (username: string): Promise<void> => {
+    console.log('🔍 subscribeToUser called for:', username);
+    await refreshUserStats(username);
+  }, [refreshUserStats]);
+
   const clearGames = useCallback(() => {
-    setState(prev => ({ ...prev, games: [], currentGame: null }));
-    stopPolling();
-  }, [stopPolling]);
+    setState(prev => ({ 
+      ...prev, 
+      games: [], 
+      currentGame: null, 
+      chatMessages: [],
+      error: null 
+    }));
+  }, []);
 
   const createGame = useCallback(async (gameName: string, userName: string): Promise<Game> => {
     try {
+      console.log('🎮 Creating game:', gameName, 'for user:', userName);
       const response = await fetch(`${API_BASE}/game/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -199,31 +228,27 @@ export function useTrpcGame() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create game: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create game: ${response.statusText}`);
       }
 
       const data = await response.json();
       const game = data.game;
-      setState(prev => ({ ...prev, currentGame: game }));
-      startPolling();
+      
+      // Refresh games list after creating a new game
+      await refreshGames();
+      
+      console.log('✅ Game created successfully:', game);
       return game;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ Error creating game:', errorMessage);
       setState(prev => ({ ...prev, error: errorMessage }));
       throw error;
     }
-  }, [startPolling]);
+  }, [refreshGames]);
 
   const joinGame = useCallback(async (gameId: string, userName: string): Promise<Game> => {
-    const endpoint = `join-game-${gameId}`;
-    
-    // Apply rate limiting - but be lenient for join operations
-    if (isRateLimited(endpoint)) {
-      console.log('🚫 Rate limited: joinGame call blocked for gameId:', gameId);
-      // Wait a bit and retry instead of throwing an error
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
     try {
       console.log('🎮 Attempting to join game:', gameId, 'as user:', userName);
       const response = await fetch(`${API_BASE}/game/join`, {
@@ -239,8 +264,11 @@ export function useTrpcGame() {
 
       const data = await response.json();
       const game = data.game;
+      
+      // Refresh current game and chat after joining
       setState(prev => ({ ...prev, currentGame: game }));
-      startPolling();
+      await refreshChatMessages(gameId);
+      
       console.log('✅ Successfully joined game:', gameId);
       return game;
     } catch (error) {
@@ -249,7 +277,7 @@ export function useTrpcGame() {
       setState(prev => ({ ...prev, error: errorMessage }));
       throw error;
     }
-  }, [startPolling]);
+  }, [refreshChatMessages]);
 
   const makeMove = useCallback(async (gameId: string, userName: string, position: number): Promise<Game> => {
     try {
@@ -265,7 +293,10 @@ export function useTrpcGame() {
 
       const data = await response.json();
       const game = data.game;
+      
+      // Refresh current game after making a move
       setState(prev => ({ ...prev, currentGame: game }));
+      
       return game;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -286,24 +317,28 @@ export function useTrpcGame() {
         throw new Error(`Failed to leave game: ${response.statusText}`);
       }
 
-      setState(prev => ({ ...prev, currentGame: null }));
-      stopPolling();
+      setState(prev => ({ 
+        ...prev, 
+        currentGame: null,
+        chatMessages: []
+      }));
+      
+      // Refresh games list after leaving
+      await refreshGames();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setState(prev => ({ ...prev, error: errorMessage }));
       throw error;
     }
-  }, [stopPolling]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopPolling();
-    };
-  }, [stopPolling]);
+  }, [refreshGames]);
 
   return {
     ...state,
+    refreshGames,
+    refreshCurrentGame,
+    refreshChatMessages,
+    refreshUserStats,
+    initializeData,
     subscribeToLobby,
     subscribeToUser,
     clearGames,

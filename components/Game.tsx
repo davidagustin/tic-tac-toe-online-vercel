@@ -1,7 +1,7 @@
 'use client';
 
-import { useTrpcGame } from '@/hooks/useTrpcGame';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useTrpcGame } from '@/hooks/useTrpcGame';
 
 interface GameProps {
   gameId: string;
@@ -18,7 +18,16 @@ const INITIAL_BOARD: BoardState = [
 ];
 
 export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
-  const { isConnected, currentGame, joinGame, leaveGame, subscribeToLobby } = useTrpcGame();
+  const { 
+    isConnected, 
+    currentGame, 
+    joinGame, 
+    leaveGame, 
+    subscribeToLobby, 
+    refreshCurrentGame, 
+    refreshChatMessages, 
+    isRefreshing 
+  } = useTrpcGame();
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [gameMessage, setGameMessage] = useState<string>("");
   const [hasError, setHasError] = useState<boolean>(false);
@@ -33,26 +42,34 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   console.log('🎮 Game Component: isConnected:', isConnected);
   console.log('🎮 Game Component: Browser:', typeof window !== 'undefined' ? navigator.userAgent : 'Server');
 
-  // Handle browser disconnect/close - automatically leave game
+  // Handle page unload - leave game
   useEffect(() => {
     const handleBeforeUnload = async () => {
       if (gameId && userName && hasJoinedGame) {
-        console.log('🚪 Browser closing - leaving game automatically');
+        console.log('🚪 Page unloading - leaving game');
         try {
-          await leaveGame(gameId, userName);
+          await fetch('/api/game/leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameId, userName }),
+          });
         } catch (error) {
-          console.error('Error leaving game on browser close:', error);
+          console.error('Error leaving game on unload:', error);
         }
       }
     };
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden' && gameId && userName && hasJoinedGame) {
-        console.log('🚪 Page hidden - leaving game automatically');
+        console.log('🚪 Page hidden - leaving game');
         try {
-          await leaveGame(gameId, userName);
+          await fetch('/api/game/leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameId, userName }),
+          });
         } catch (error) {
-          console.error('Error leaving game on page hide:', error);
+          console.error('Error leaving game on visibility change:', error);
         }
       }
     };
@@ -64,16 +81,15 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [gameId, userName, hasJoinedGame, leaveGame]);
+  }, [gameId, userName, hasJoinedGame]);
 
-  // Join game channel when component mounts - FIXED: Only call once
+  // Initialize data when component mounts
   useEffect(() => {
     console.log('🎮 Game Component: useEffect triggered - isConnected:', isConnected, 'gameId:', gameId, 'joinAttempted:', joinAttempted, 'joinAttemptRef:', joinAttemptRef.current);
 
-    // Start polling immediately with the gameId to fetch game data
+    // Initialize data with the gameId
     if (isConnected && gameId) {
-      console.log('🎮 Game Component: Starting polling with gameId:', gameId);
-      // Start polling to fetch game data
+      console.log('🎮 Game Component: Initializing data with gameId:', gameId);
       subscribeToLobby(gameId);
     }
 
@@ -123,7 +139,7 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     } else {
       console.log('⚠️ Game Component: Cannot join game - isConnected:', isConnected, 'gameId:', gameId, 'joinAttempted:', joinAttempted, 'joinAttemptRef:', joinAttemptRef.current);
     }
-  }, [isConnected, gameId, userName, joinAttempted, subscribeToLobby, joinGame]); // Added subscribeToLobby and joinGame to dependencies
+  }, [isConnected, gameId, userName, joinAttempted, subscribeToLobby, joinGame, currentGame?.players]);
 
   // Cleanup function to leave game when component unmounts
   useEffect(() => {
@@ -220,34 +236,15 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
   );
 
   const isMyTurn = useMemo(() => {
-    console.log('🎮 Game Component: isMyTurn calculation - currentGame:', currentGame);
-    console.log('🎮 Game Component: isMyTurn calculation - userName:', userName);
-    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.currentPlayer:', currentGame?.currentPlayer);
-    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.status:', currentGame?.status);
-    console.log('🎮 Game Component: isMyTurn calculation - currentGame?.players:', currentGame?.players);
-    
-    if (!currentGame || currentGame.status !== 'playing' || !currentGame.players) {
-      console.log('🎮 Game Component: isMyTurn = false (conditions not met)');
-      return false;
-    }
-    
-    const result = currentGame.currentPlayer === userName;
-    console.log('🎮 Game Component: isMyTurn =', result, '(currentPlayer === userName)');
-    return result;
-  }, [currentGame, userName]);
+    if (!currentGame || isGameEnded) return false;
+    return currentGame.currentPlayer === userName;
+  }, [currentGame?.currentPlayer, currentGame?.status, userName, isGameEnded]);
 
-  // Get current player name
-  const getCurrentPlayerName = useMemo(() => {
-    if (!currentGame || !currentGame.currentPlayer) return 'Unknown';
-    return currentGame.currentPlayer;
-  }, [currentGame]);
-
-  // Get my player symbol
   const getMyPlayerSymbol = useMemo(() => {
-    if (!currentGame || !currentGame.players) return null;
+    if (!currentGame?.players) return null;
     const playerIndex = currentGame.players.indexOf(userName);
-    return playerIndex === 0 ? 'X' : 'O';
-  }, [currentGame, userName]);
+    return playerIndex === 0 ? 'X' : playerIndex === 1 ? 'O' : null;
+  }, [currentGame?.players, userName]);
 
   const handleLeaveGame = useCallback(async () => {
     try {
@@ -320,6 +317,15 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
     }
   }, [isConnected, board, isGameEnded, isMyTurn, currentGame?.status, getMyPlayerSymbol, gameId, userName]);
 
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Manual refresh triggered');
+    await Promise.all([
+      refreshCurrentGame(gameId),
+      refreshChatMessages(gameId)
+    ]);
+  }, [refreshCurrentGame, refreshChatMessages, gameId]);
+
   // Handle errors
   if (hasError) {
     return (
@@ -389,10 +395,33 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
             Game: <span className="text-yellow-300 font-semibold">{currentGame.name}</span>
           </p>
 
-          {/* Game Status */}
-          <div className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
-            <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
-            {isConnected ? 'Connected' : 'Disconnected'}
+          {/* Game Status and Refresh Button */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
+            <div className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium bg-white/10 backdrop-blur-lg border border-white/20">
+              <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </div>
+            
+            {/* Manual Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={`btn-secondary flex items-center gap-2 px-4 py-2 text-sm ${
+                isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'
+              }`}
+            >
+              {isRefreshing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <span>🔄</span>
+                  Refresh Game
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -414,68 +443,88 @@ export default function Game({ gameId, userName, onBackToLobby }: GameProps) {
           </div>
 
           <div className="card text-center">
-            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Current Turn</h3>
-            <p className="text-xl sm:text-2xl font-bold text-purple-300 truncate">{getCurrentPlayerName}</p>
-            {isMyTurn && currentGame.status === 'playing' && (
-              <p className="text-sm text-green-400 mt-1">Your turn!</p>
+            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Status</h3>
+            <p className="text-lg sm:text-xl font-bold text-purple-300">
+              {currentGame.status === 'waiting' && 'Waiting for Players'}
+              {currentGame.status === 'playing' && 'Game in Progress'}
+              {currentGame.status === 'finished' && 'Game Finished'}
+            </p>
+            {currentGame.winner && (
+              <p className="text-sm text-yellow-300 mt-1">
+                Winner: {currentGame.winner}
+              </p>
             )}
           </div>
 
           <div className="card text-center">
-            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Game Status</h3>
-            <p className="text-xl sm:text-2xl font-bold text-purple-300 capitalize">{currentGame.status}</p>
-            {gameMessage && (
-              <p className="text-sm text-purple-200 mt-1 truncate">{gameMessage}</p>
-            )}
+            <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Turn</h3>
+            <div className="text-lg sm:text-xl font-bold text-purple-300">
+              {isMyTurn ? (
+                <span className="text-green-400">Your Turn!</span>
+              ) : currentGame.currentPlayer ? (
+                <span>{currentGame.currentPlayer}'s Turn</span>
+              ) : (
+                <span>Waiting...</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Game Board - Mobile Optimized */}
-        <div className="card max-w-sm mx-auto mb-6 sm:mb-8 p-4 sm:p-6">
-          <div className="game-board no-select">
+        {/* Game Board */}
+        <div className="card text-center mb-6 sm:mb-8">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-4">Game Board</h3>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-xs sm:max-w-sm mx-auto">
             {board.map((row, y) =>
               row.map((cell, x) => (
                 <button
                   key={`${y}-${x}`}
                   onClick={() => handleCellClick(y, x)}
-                  disabled={isLoading || cell !== null || !isMyTurn || isGameEnded || currentGame.status !== 'playing'}
-                  className="game-cell chrome-fix"
-                  aria-label={`Cell ${y + 1}-${x + 1}, ${cell || 'empty'}`}
+                  disabled={!isMyTurn || isGameEnded || cell !== null || isLoading}
+                  className={`
+                    aspect-square text-2xl sm:text-4xl font-bold rounded-lg border-2 transition-all duration-200
+                    ${cell === 'X' 
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-400/50' 
+                      : cell === 'O' 
+                        ? 'bg-red-500/20 text-red-400 border-red-400/50'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/20 hover:border-white/40'
+                    }
+                    ${!isMyTurn || isGameEnded || cell !== null || isLoading 
+                      ? 'cursor-not-allowed opacity-50' 
+                      : 'cursor-pointer hover:scale-105'
+                    }
+                  `}
                 >
-                  {cell}
+                  {cell || ''}
                 </button>
               ))
             )}
           </div>
+          
+          {/* Game Message */}
+          <p className="text-lg sm:text-xl font-semibold text-purple-300 mt-4">
+            {gameMessage}
+          </p>
         </div>
 
-        {/* Game Controls - Mobile Responsive */}
-        <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-4">
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={handleLeaveGame}
             disabled={isLoading}
-            className="btn-danger w-full sm:w-auto"
+            className="btn-secondary"
           >
             {isLoading ? 'Leaving...' : 'Leave Game'}
           </button>
-
-          {/* Back to Lobby button for mobile */}
-          <button
-            onClick={onBackToLobby}
-            className="btn-secondary w-full sm:w-auto"
-          >
-            Back to Lobby
-          </button>
+          
+          {isGameEnded && (
+            <button
+              onClick={onBackToLobby}
+              className="btn-primary"
+            >
+              Back to Lobby
+            </button>
+          )}
         </div>
-
-        {/* Mobile-specific help text */}
-        {isMyTurn && currentGame.status === 'playing' && (
-          <div className="text-center">
-            <p className="text-purple-200 text-sm">
-              Tap a cell to make your move
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
